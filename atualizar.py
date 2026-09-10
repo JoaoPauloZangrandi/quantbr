@@ -193,6 +193,9 @@ def reconciliar() -> None:
 
 
 DIAS_ENTRE_ATUALIZACOES_DE_PAPERS = 7
+# O balanco do ano corrente muda conforme as empresas entregam; os anos fechados nao mudam
+# mais. Baixar tudo todo dia seria 17 arquivos para reler o mesmo dado.
+DIAS_ENTRE_ATUALIZACOES_CONTABEIS = 30
 
 
 def _dias_desde_ultimo_paper() -> float | None:
@@ -230,6 +233,36 @@ def rotina_papers(forcar: bool = False) -> None:
     desde = (dt.date.today() - dt.timedelta(days=45)).isoformat()
     m = papers.coletar_openalex(desde)
     _registrar(f"  OpenAlex: {m:,} trabalhos desde {desde}")
+
+
+def _dias_desde_ultimo_balanco() -> float:
+    with warehouse.connect(read_only=True) as con:
+        if not warehouse.table_exists(con, "cvm_dfp"):
+            return 1e9
+        ultimo = con.execute("SELECT max(_downloaded_at) FROM cvm_dfp").fetchone()[0]
+    if ultimo is None:
+        return 1e9
+    return (now_utc() - ultimo).total_seconds() / 86400
+
+
+def rotina_contabil(forcar: bool = False) -> int:
+    """Rebaixa so o ano corrente do DFP -- o unico que ainda muda.
+
+    Fica num try proprio no `main`, como a de papers: falha na CVM nao pode derrubar a
+    atualizacao de preco, que e a parte critica.
+    """
+    dias = _dias_desde_ultimo_balanco()
+    if not forcar and dias < DIAS_ENTRE_ATUALIZACOES_CONTABEIS:
+        _registrar(f"balanco atualizado ha {dias:.1f} dias, pulando "
+            f"(intervalo: {DIAS_ENTRE_ATUALIZACOES_CONTABEIS} dias)")
+        return 0
+    from ingest import dfp
+    ano = dt.date.today().year
+    n = dfp.carregar_ano(ano, force=True)
+    _registrar(f"  DFP {ano}: {n:,} linhas")
+    if n:
+        emissor.construir()
+    return n
 
 
 def main() -> int:

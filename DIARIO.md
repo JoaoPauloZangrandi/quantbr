@@ -252,6 +252,40 @@ descartada por 0,26 ponto percentual. Grupamento é fato da **empresa**, não do
 criada `herdar_entre_classes`, 70 fatores herdados.
 **Testes:** 71 → 74.
 
+### 2026-09-10 18:20 — claude — Dado contábil: valor, qualidade e dividendo de quem morreu
+**Pedido:** "deixe a base mais robusta para dividend yield, tamanho, valor e long-horizon
+e outras coisas que achar importante"
+**Feito:** `ingest/dfp.py` (novo) — 102.104 linhas de balanço da CVM, 2010–2026 — e o
+painel por emissor ganhou as colunas contábeis com casamento **point-in-time real**.
+**Arquivos:** `ingest/dfp.py` (novo), `emissor.py`, `atualizar.py`,
+`tests/test_balanco_point_in_time.py` (novo), `REGISTRO.md`.
+**Resultado principal — o dividendo de empresa morta, que era o maior buraco:**
+
+| cobertura de dividendo (2011+) | empresa que **morreu** | empresa **viva** |
+|---|---|---|
+| via B3 (o que tínhamos) | **59,0%** | 82,1% |
+| via CVM/DMPL (agora) | **95,1%** | 96,9% |
+
+O vão entre morta e viva cai de 23 pontos para 1,8.
+
+**Point-in-time de verdade:** a CVM informa a data real de entrega (mediana 88 dias, máximo
+**964**), então cada mês recebe só o que já era público — e na versão que existia naquele
+dia. Verificado na Petrobras: jan-fev/2016 usa o balanço de 2014; março troca para o de
+2015, entregue em 21/03.
+
+**Uma frente foi rejeitada por medição:** reconstruir a quantidade de ações para trás (para
+ter valor de mercado antes de 2010). Nos anos com evento, aplicar o fator dá erro mediano
+de 33% e **ignorar o evento dá 0,0%** — aplicar piora. Não foi feita.
+
+**Colunas novas:** book_to_market, lucro_sobre_preco, roe, roa, dividend_yield,
+dividend_yield_liquido, mais patrimônio, ativo, lucro, receita e a procedência contábil.
+Cobertura: 72,0% dos meses-empresa com balanço.
+**Testes:** 74 → 80.
+**Nota:** li o `knowledge/small_caps/RELATORIO.md` do Codex antes de começar. A linha que
+ele marca como prioridade alta — "valor com qualidade em empresas menores" — tem como
+principal obstáculo "contabilidade disponível na data certa", que é exatamente o que este
+bloco entrega. Não commitei `knowledge/`: é dele e pode estar pela metade.
+
 ---
 
 ## O que está aberto

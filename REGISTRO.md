@@ -1166,6 +1166,104 @@ liquido e conhecido, e nenhuma auditoria interna o pegou -- porque por dentro a 
 coerente consigo mesma. So a comparacao com um dado que nao e nosso mostrou. Auditoria
 interna acha inconsistencia; so referencia externa acha erro sistematico.
 
+### 10/09/2026 - Dado contabil: valor, qualidade e dividend yield de quem morreu
+
+Joao pediu a base mais robusta para dividend yield, tamanho, valor e long-horizon. Duas
+frentes foram tentadas; uma foi rejeitada por medicao e a outra virou a maior adicao de
+dado desde o COTAHIST.
+
+**FRENTE REJEITADA -- reconstruir a quantidade de acoes para tras.**
+
+Valor de mercado nao existe antes de jul/2010 (410.251 linhas, 23% da base) porque o FRE
+da CVM comeca em 2010. A ideia: caminhar para tras a partir da primeira contagem conhecida
+usando os fatores de evento -- se a empresa desdobrou 4:1 em 2008, a quantidade antes era
+um quarto. Testado no periodo em que existem as duas coisas:
+
+| anos COM evento detectado | erro mediano da previsao |
+|---|---|
+| aplicando o fator do evento | **33%** |
+| **ignorando o evento** | **0,0%** |
+
+Aplicar o fator PIORA. A contagem anual do FRE nao acompanha o evento do jeito que a
+reconstrucao exigiria: a data de referencia nao bate com a data ex e emissao se mistura no
+mesmo ano. Pela regra 11 -- ajuste sem evidencia e pior que ajuste nenhum -- nao foi feita.
+Valor de mercado pre-2010 fica declarado como indisponivel.
+
+(Isto NAO contradiz o `acoes_confirmam` do detector: la a contagem so CONFIRMA quando
+concorda, e nunca reprova quando discorda. E filtro de um lado so.)
+
+**FRENTE APLICADA -- `ingest/dfp.py`, as Demonstracoes Financeiras Padronizadas.**
+
+102.104 linhas, 2010-2026: patrimonio liquido, ativo total, lucro liquido, receita,
+dividendos e JCP.
+
+*Duas armadilhas do dado, e as duas quebram em silencio:*
+
+1. **O plano de contas muda por setor.** Em companhia nao financeira `2.03` e Patrimonio
+   Liquido; em banco `2.03` e "Passivos Financeiros ao Custo Amortizado". Casar por CODIGO
+   produziria B/M com passivo de banco no numerador e ninguem veria. O casamento aqui e
+   pelo NOME normalizado, com as variantes listadas em aberto.
+2. **`ESCALA_MOEDA`** diz unidade ou MIL. Ignorar erra por mil vezes, e so em parte das
+   empresas -- o pior tipo de erro, porque a serie continua plausivel.
+
+*Conferencia contra a realidade*: Petrobras 2015 PL R$257,9 bi, Vale R$139,4 bi, Itau
+Holding R$114,1 bi, Bradesco R$90,9 bi. Todos batem. O maior valor da base (R$425,8 bi) e
+o **Banco Santander da Espanha**, emissor de BDR -- correto, e fora do nosso universo.
+
+**POINT-IN-TIME DE VERDADE, NAO DEFASAGEM FIXA.**
+
+O padrao da literatura e defasar 6 meses (Fama-French). A CVM informa `DT_RECEB`, a data
+real de entrega: mediana de 88 dias, p90 de 125, **maximo de 964**. A defasagem fixa erra
+justamente nas empresas que atrasam balanco -- que sao as em dificuldade, e as que mais
+importam num teste de valor. Cada mes recebe o que ja estava entregue no ultimo dia dele,
+na versao disponivel NAQUELA data (a v1 sai em fevereiro, a v3 refaz em junho; quem operou
+em marco viu a v1).
+
+Verificado na Petrobras:
+
+| mes | balanco usado | entregue em |
+|---|---|---|
+| jan e fev/2016 | 2014-12-31 (v2) | 24/04/2015 |
+| mar/2016 em diante | 2015-12-31 (v1) | 21/03/2016 |
+
+Uma defasagem de 6 meses teria segurado o de 2014 ate junho.
+
+**O RESULTADO QUE A FRENTE INTEIRA BUSCAVA -- dividendo de empresa morta.**
+
+A DMPL (mutacoes do patrimonio liquido) traz dividendo e JCP de toda companhia que
+entregou formulario, viva ou nao. A B3 so conhece empresa viva.
+
+| cobertura de dividendo (2011+) | empresa que MORREU | empresa VIVA |
+|---|---|---|
+| via B3 (o que tinhamos) | **59,0%** | 82,1% |
+| via CVM/DMPL (agora) | **95,1%** | 96,9% |
+
+O vao entre morta e viva cai de **23 pontos para 1,8**. Armadilha evitada na DMPL: ela e
+uma matriz e a mesma conta aparece em oito colunas de patrimonio -- somar tudo contaria o
+mesmo dividendo varias vezes. So a coluna total entra.
+
+**COLUNAS NOVAS em `emissor_mensal`**: patrimonio_liquido, ativo_total, lucro_liquido,
+receita, dividendos, jcp, book_to_market, lucro_sobre_preco, roe, roa, dividend_yield,
+dividend_yield_liquido (JCP liquido dos 15% de IRRF -- as duas versoes convivem),
+contabil_dt_refer, contabil_dt_receb, contabil_versao, contabil_consolidado,
+contabil_dias_ate_entrega, contabil_idade_dias.
+
+Cobertura: **72,0% dos meses-empresa com balanco**, 69,6% com book-to-market, 74,2% com
+dividend yield -- perto do maximo possivel, ja que o DFP comeca em 2010 e 74,3% do painel
+e de 2010 em diante.
+
+**PL NEGATIVO E REAL, NAO ERRO.** 10% das observacoes tem book-to-market negativo, o que
+assustou. Investigado: sao BOMBRIL, TEKA, SANSUY, HOTEIS OTHON, ESTRELA, RECRUSUL -- as
+zumbis classicas da bolsa, com decadas de prejuizo acumulado. E a concentracao prova: no
+universo liquido (>R$100mi/mes) apenas **1,9%** tem PL negativo, em linha com o padrao
+internacional, contra 17,6% na cauda iliquida.
+
+**Rotina**: `atualizar.py` ganhou `rotina_contabil`, que rebaixa so o ano corrente -- o
+unico que ainda muda -- no maximo a cada 30 dias, em try proprio, como a de papers.
+
+Testes: 74 -> 80. Seis deles travam o point-in-time, incluindo o caso em que a versao 3
+do balanco nao pode aparecer em abril porque so foi entregue em junho.
+
 ---
 
 ## 3. Estado atual da base
