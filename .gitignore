@@ -1,0 +1,21 @@
+# dados brutos e warehouse nunca vao pro git
+data/raw/
+data/warehouse/
+*.duckdb
+*.duckdb.wal
+*.parquet
+*.zip
+
+# log da tarefa diaria: muda todo dia e nao e conhecimento
+atualizacao.log
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# temporarios (convencao herdada do TCC: prefixo _ = temporario)
+_*
+!_*.py.keep

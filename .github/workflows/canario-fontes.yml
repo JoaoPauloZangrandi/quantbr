@@ -1,0 +1,26 @@
+# Canario das fontes de dados.
+#
+# Por que este job NAO monta o warehouse: o warehouse (DuckDB + parquet, dezenas de GB)
+# vive na maquina local e nao cabe nem faz sentido no CI. O que o CI faz e outra coisa,
+# e mais valiosa: checar todo dia se as fontes gratuitas continuam de pe e no mesmo
+# formato. B3, NEFIN e BCB mudam URL e layout sem avisar. Sem este canario voce descobre
+# a quebra no dia em que precisa do dado; com ele, voce descobre no dia em que quebrou.
+name: canario-fontes
+
+on:
+  schedule:
+    - cron: "30 11 * * 1-5"   # 08:30 BRT, dia util, depois do fechamento anterior
+  workflow_dispatch:
+
+jobs:
+  checar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Instalar dependencias
+        run: uv venv && uv pip install duckdb pandas pyarrow numpy requests tenacity pyyaml python-dateutil openpyxl pytest
+      - name: Testes de layout (offline, nao dependem de rede)
+        run: uv run pytest tests/ -q
+      - name: Canario das fontes (rede)
+        run: uv run python -m ingest.canario

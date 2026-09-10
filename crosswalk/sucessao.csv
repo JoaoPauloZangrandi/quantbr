@@ -1,0 +1,3 @@
+cnpj_antecessor,cnpj_sucessor,ticker_antecessor,ticker_sucessor,data,razao_troca,evidencia,decidido_em,decidido_por
+02.808.708/0001-07,07.526.557/0001-00,AMBV4,ABEV3,2013-11-11,,"CVM: COMPANHIA DE BEBIDAS DAS AMERICAS-AMBEV (02.808.708/0001-07) cancelada em 12/12/2013 por CANCELAMENTO VOLUNTARIO; AMBEV S.A. (07.526.557/0001-00) ativa. COTAHIST: AMBV4 ultimo pregao 08/11/2013, ABEV3 primeiro pregao 11/11/2013 (pregao seguinte).",2026-09-10,claude+joao
+02.808.708/0001-07,07.526.557/0001-00,AMBV3,ABEV3,2013-11-11,,"Mesma evidencia da linha AMBV4. A ON e a PN da antecessora convergiram para a unica classe da sucessora.",2026-09-10,claude+joao

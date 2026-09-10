@@ -1,0 +1,32 @@
+[project]
+name = "quantbr"
+version = "0.1.0"
+description = "Casa de research quant em acoes brasileiras, operada por agentes de IA"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "duckdb>=1.1",
+    "pandas>=2.2",
+    "pyarrow>=17",
+    "numpy>=1.26",
+    "requests>=2.32",
+    "tenacity>=9.0",
+    "pyyaml>=6.0",
+    "python-dateutil>=2.9",
+    "pandera>=0.20",
+    "openpyxl>=3.1",
+    "xlrd>=2.0",
+    "pytz>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.setuptools.packages.find]
+include = ["ingest*", "master*", "protocol*", "engine*", "portfolio*", "agents*", "execution*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
