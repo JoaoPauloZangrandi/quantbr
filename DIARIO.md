@@ -44,8 +44,10 @@ Quatro, e a primeira é a que pode corromper trabalho de verdade:
 2. **A tarefa agendada do Windows roda todo dia às 20h** e também escreve (baixa o pregão,
    reconstrói `acoes_diario` e `emissor_mensal`). Não é um terceiro agente educado: ela
    não lê este arquivo. Evite reconstrução longa perto desse horário.
-3. **`git pull --rebase` antes de todo push.** O repositório é público e tem dois autores;
-   um push forçado apaga trabalho do outro sem aviso.
+3. **Ordem certa: `git add` → `git commit` → `git pull --rebase` → `git push`.** Nesta
+   ordem, e não em outra: `pull --rebase` com alteração não commitada falha na hora
+   (aconteceu aqui em 10/09). Nunca `push --force` — o repositório é público e tem dois
+   autores, e um force apaga trabalho do outro sem aviso.
 4. **Não desfaça o que o outro fez sem registrar o porquê.** Se algo parecer errado,
    escreva a entrada explicando o que você mediu e o que mudou. Este projeto já teve um
    caso em que uma "correção" apagou a queda real da Americanas da série — mudança sem
