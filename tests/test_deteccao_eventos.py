@@ -182,3 +182,69 @@ def test_a_folga_da_cvm_nao_abre_a_porta_para_queda_real(
     """
     confirma = abs(razao_acoes / fator - 1) <= TOLERANCIA_ACOES
     assert not confirma, f"{descricao}: a CVM NAO pode confirmar isso"
+
+
+# ---------------------------------------------------------------------------
+# 10/09/2026: heranca de fator entre classes da mesma empresa.
+# ---------------------------------------------------------------------------
+
+import pandas as pd
+
+from master.eventos import herdar_entre_classes
+
+
+def _candidatos(linhas: list[dict]) -> pd.DataFrame:
+    base = {"emissor": "OIBR", "data": "2014-12-22", "preco_ok": True}
+    return pd.DataFrame([{**base, **l} for l in linhas])
+
+
+def test_a_classe_irma_transmite_o_fator_que_ja_provou():
+    """Bug real, e ele so apareceu na auditoria contra o fator de mercado do NEFIN.
+
+    OIBR3 e OIBR4 em 22/12/2014: o MESMO grupamento 1:9, no mesmo pregao. A ON errou
+    0,49% contra 1/9 e passou; a PN errou 5,26% e foi descartada por 0,26 ponto
+    percentual. Ficaram +850% de retorno falso na OIBR4, num pregao de R$20 milhoes.
+
+    Grupamento e fato da EMPRESA. Se uma classe provou, a irma herda.
+    """
+    cand = _candidatos([
+        {"ticker": "OIBR3", "razao_preco": 0.111650, "fator_sugerido": 1 / 9,
+         "erro_relativo": 0.004854, "confianca": "alta", "tipo_sugerido": "grupamento"},
+        {"ticker": "OIBR4", "razao_preco": 0.105263, "fator_sugerido": 1 / 9,
+         "erro_relativo": 0.052632, "confianca": "descartado", "tipo_sugerido": "grupamento"},
+    ])
+    saida = herdar_entre_classes(cand).set_index("ticker")
+    assert saida.loc["OIBR4", "confianca"] == "alta"
+    assert saida.loc["OIBR4", "fator_herdado"]
+    assert saida.loc["OIBR4", "fator_sugerido"] == pytest.approx(1 / 9)
+    assert not saida.loc["OIBR3", "fator_herdado"], "quem ja passou nao herda nada"
+
+
+def test_a_heranca_nao_alcanca_classe_cujo_preco_nao_viu_o_evento():
+    """A trava. Herdar nao pode virar carimbar.
+
+    Se a PN caiu 2% num dia em que a ON foi agrupada 1:9, alguma coisa esta errada -- ou
+    a PN nao negociou, ou o evento nao a alcancou. Aplicar 1/9 ali criaria um retorno de
+    -89% do nada. A razao de preco da propria classe tem que ser compativel.
+    """
+    cand = _candidatos([
+        {"ticker": "OIBR3", "razao_preco": 0.111650, "fator_sugerido": 1 / 9,
+         "erro_relativo": 0.004854, "confianca": "alta", "tipo_sugerido": "grupamento"},
+        {"ticker": "OIBR4", "razao_preco": 1.02, "fator_sugerido": 1.0,
+         "erro_relativo": 0.02, "confianca": "descartado", "tipo_sugerido": "desdobramento"},
+    ])
+    saida = herdar_entre_classes(cand).set_index("ticker")
+    assert not saida.loc["OIBR4", "fator_herdado"]
+    assert saida.loc["OIBR4", "confianca"] == "descartado"
+
+
+def test_sem_irma_aceita_nada_e_herdado():
+    """Duas classes descartadas continuam descartadas -- ninguem provou nada."""
+    cand = _candidatos([
+        {"ticker": "AAAA3", "razao_preco": 4.4, "fator_sugerido": 4.0,
+         "erro_relativo": 0.10, "confianca": "descartado", "tipo_sugerido": "desdobramento"},
+        {"ticker": "AAAA4", "razao_preco": 4.3, "fator_sugerido": 4.0,
+         "erro_relativo": 0.075, "confianca": "descartado", "tipo_sugerido": "desdobramento"},
+    ])
+    saida = herdar_entre_classes(cand)
+    assert not saida["fator_herdado"].any()

@@ -31,6 +31,26 @@ Quando dois agentes trabalham juntos, cada um assina a entrada (`claude`, `codex
 **lê as últimas entradas antes de começar** — é assim que se evita refazer ou desfazer o
 trabalho do outro.
 
+## Regras de convivência entre agentes
+
+Quatro, e a primeira é a que pode corromper trabalho de verdade:
+
+1. **O DuckDB aceita UM escritor por vez.** `painel.construir()`, `emissor.construir()`,
+   qualquer `ingest.*` e `master.identidade` escrevem no warehouse. Antes de rodar algo
+   que escreve, registre aqui uma entrada dizendo que vai rodar — e olhe se o outro
+   agente não anunciou algo antes. `warehouse.connect()` tem backoff de lock, mas ele
+   resolve espera, não resolve dois agentes reconstruindo a mesma tabela com premissas
+   diferentes.
+2. **A tarefa agendada do Windows roda todo dia às 20h** e também escreve (baixa o pregão,
+   reconstrói `acoes_diario` e `emissor_mensal`). Não é um terceiro agente educado: ela
+   não lê este arquivo. Evite reconstrução longa perto desse horário.
+3. **`git pull --rebase` antes de todo push.** O repositório é público e tem dois autores;
+   um push forçado apaga trabalho do outro sem aviso.
+4. **Não desfaça o que o outro fez sem registrar o porquê.** Se algo parecer errado,
+   escreva a entrada explicando o que você mediu e o que mudou. Este projeto já teve um
+   caso em que uma "correção" apagou a queda real da Americanas da série — mudança sem
+   evidência escrita é como isso acontece.
+
 ---
 
 ## 2026-09-09
@@ -203,6 +223,32 @@ empresa ilíquida trocava de classe em metade dos meses (IGUAÇU CAFÉ 50,9%). G
 **4,11% para 1,75%**, e o que sobra está inteiro em microcap de R$ 11,6 mil de volume
 mensal — contra R$ 54,6 milhões nas que não trocam.
 **Testes:** 68 → 71.
+
+### 2026-09-10 10:15 — claude — Validação externa contra o NEFIN
+**Pedido:** "e agora?" → escolhida a validação contra o NEFIN.
+**Feito:** reingerido `ingest/nefin.py` (6.321 dias de fatores, 2001–2026) e revivido
+`master/auditoria_precos.py`, que estava morto desde 02/09. Também registradas as regras
+de convivência entre agentes no topo deste arquivo, porque o Codex entrou no projeto.
+**Arquivos:** `master/auditoria_precos.py`, `master/eventos.py`, `DIARIO.md`,
+`tests/test_deteccao_eventos.py`, `REGISTRO.md`.
+**Resultado — a primeira medida de ACURÁCIA da base, não de consistência:**
+
+| série | correlação com o mercado NEFIN |
+|---|---|
+| crua (sem ajuste) | **0,5381** |
+| ajustada por quantidade | **0,9247** |
+| retorno total | 0,9143 |
+
+Ajustar quase dobra a correlação com uma referência acadêmica independente. E no acumulado
+de 820%, a série de retorno total fica a −139 p.p. contra −584 da série sem provento — 445
+pontos que só o dividendo explica.
+
+**A validação achou um bug que nenhuma auditoria interna pegou:** OIBR4 em 22/12/2014,
+R$1,00 → R$9,50, **+850%** com R$20 milhões de volume. OIBR3 e OIBR4 tiveram o mesmo
+grupamento 1:9 no mesmo pregão; a ON errou 0,49% e passou, a PN errou 5,26% e foi
+descartada por 0,26 ponto percentual. Grupamento é fato da **empresa**, não do papel —
+criada `herdar_entre_classes`, 70 fatores herdados.
+**Testes:** 71 → 74.
 
 ---
 

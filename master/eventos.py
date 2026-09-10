@@ -223,6 +223,52 @@ def _serie_por_ticker(con) -> pd.DataFrame:
     """).df()
 
 
+def herdar_entre_classes(cand: pd.DataFrame, tolerancia: float = 0.20) -> pd.DataFrame:
+    """A classe irma ja provou o evento? Entao o fator dela vale para esta tambem.
+
+    Grupamento e desdobramento sao fato da EMPRESA, nao do papel: se a ON foi agrupada
+    1:9, a PN foi agrupada 1:9 no mesmo pregao, pelo mesmo fator. Ate esta funcao existir,
+    a confirmacao entre classes so relaxava a tolerancia -- cada classe ainda tinha que
+    provar o fator com o proprio preco, e o preco de uma classe pouco liquida e ruidoso.
+
+    O caso que revelou, e ele so apareceu na auditoria contra o fator de mercado do NEFIN:
+    OIBR3 e OIBR4 em 22/12/2014, mesmo grupamento 1:9. A ON errou 0,49% e passou; a PN
+    errou 5,26% e foi descartada por 0,26 ponto percentual. Resultado: +850% de retorno
+    falso na OIBR4, num pregao de R$20 milhoes de volume.
+
+    A regra e conservadora de proposito:
+      - a irma tem que ter sido aceita com confianca alta ou media;
+      - a razao de preco DESTA classe tem que ser compativel com o fator herdado (20%),
+        senao a PN estaria recebendo um evento que o preco dela nao viu;
+      - a linha ja tinha que ser candidata, entao nao se inventa evento em dia parado.
+    """
+    aceitos = cand["confianca"].isin(("alta", "media"))
+    if not aceitos.any():
+        cand["fator_herdado"] = False
+        return cand
+
+    irmaos = (cand[aceitos]
+              .sort_values("erro_relativo")
+              .groupby(["emissor", "data"], as_index=False)
+              .agg(fator_irmao=("fator_sugerido", "first")))
+    cand = cand.merge(irmaos, on=["emissor", "data"], how="left")
+    compativel = (
+        ~aceitos.values
+        & cand["fator_irmao"].notna()
+        & ((cand["razao_preco"] / cand["fator_irmao"] - 1).abs() <= tolerancia)
+        & cand["preco_ok"]
+    )
+    cand["fator_herdado"] = compativel
+    cand.loc[compativel, "fator_sugerido"] = cand.loc[compativel, "fator_irmao"]
+    cand.loc[compativel, "erro_relativo"] = (
+        (cand.loc[compativel, "razao_preco"] / cand.loc[compativel, "fator_irmao"]) - 1
+    ).abs()
+    cand.loc[compativel, "confianca"] = "alta"
+    cand.loc[compativel, "tipo_sugerido"] = np.where(
+        cand.loc[compativel, "fator_sugerido"] > 1, "desdobramento", "grupamento")
+    return cand
+
+
 def detectar(par: Parametros | None = None) -> pd.DataFrame:
     par = par or Parametros()
     with warehouse.connect(read_only=True) as con:
@@ -396,7 +442,10 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
                "preco_de_centavos"],
         default="descartado")
 
+    cand = herdar_entre_classes(cand)
+
     cols = ["ticker", "isin", "data", "data_ant", "fech_ant", "fechamento",
+            "fator_herdado",
             "fech_cotado_ant", "fator_cotacao",
             "razao_preco", "fator_sugerido", "erro_relativo", "razao_quantidade",
             "razao_financeiro", "tolerancia_usada", "razao_redonda", "quantidade_confirma",

@@ -1098,6 +1098,74 @@ ninguem perceber.
 
 Testes: 68 -> 71.
 
+### 10/09/2026 - Validacao externa contra o NEFIN, e o bug que ela achou
+
+Ate aqui a garantia da base era INTERNA: consistencia, nao acuracia. Nada nunca tinha sido
+conferido contra fonte independente. O modulo que fazia isso (`master/auditoria_precos.py`)
+estava morto desde a limpeza de 02/09, porque dependia de `precos_diarios` e
+`nefin_fatores` -- duas tabelas apagadas.
+
+`ingest/nefin.py` reingerido: 6.321 dias de fatores (Rm-Rf, SMB, HML, WML, IML e taxa
+livre), 2001 a 07/2026, mais aluguel e short interest agregados.
+
+**O TESTE.** Nao e reproduzir a carteira do NEFIN -- universo e ponderacao sao diferentes
+e a comparacao seria injusta. E comparar a NOSSA serie crua e a NOSSA serie ajustada
+contra a mesma referencia externa: se ajustar nao aproximar, o ajuste nao esta fazendo
+nada. Carteira de teste: top 150 por liquidez mediana de 12 meses, recomposta todo mes,
+selecionada com informacao ate o mes anterior (senao a propria auditoria teria look-ahead).
+
+| serie | correlacao com o mercado NEFIN | desvio do acumulado |
+|---|---|---|
+| **crua** (sem ajuste nenhum) | **0,5381** | +846,7 p.p. |
+| ajustada por quantidade | **0,9247** | -583,8 p.p. |
+| **retorno total** | 0,9143 | **-139,2 p.p.** |
+
+Ajustar quase **dobra** a correlacao (+0,3866). E o dividendo se confirma sozinho: num
+acumulado de 820%, a serie de retorno total fica a -139 p.p. da referencia contra -584 da
+serie sem provento -- 445 pontos de aproximacao que so o provento explica.
+
+O modulo tambem excluiu sozinho 2 pregoes em que o proprio NEFIN esta errado (13 e
+16/06/2025, |retorno| > 10%), usando a regra ja registrada no bug 8. Referencia externa
+tambem se audita.
+
+**O BUG QUE A VALIDACAO ACHOU -- e ele era invisivel por dentro.**
+
+Nos "piores dias" apareceu 22/12/2014 com erro de 6,15 p.p. na serie JA AJUSTADA. Fui ver:
+**OIBR4, R$1,00 -> R$9,50, +850%, com R$20 milhoes de volume e sem evento marcado.**
+
+Diagnostico:
+
+| ticker | razao | fator | erro | veredito |
+|---|---|---|---|---|
+| OIBR3 | 0,11165 | 1/9 | **0,49%** | alta |
+| OIBR4 | 0,10526 | 1/9 | **5,26%** | **descartado** |
+
+O MESMO grupamento 1:9, no mesmo pregao, nas duas classes da mesma empresa. A ON passou; a
+PN foi reprovada por **0,26 ponto percentual**.
+
+O defeito era de desenho, e era meu: `classes_confirmam` so RELAXAVA a tolerancia -- cada
+classe ainda tinha que provar o fator com o proprio preco, e preco de classe menos liquida
+e mais ruidoso. Mas **grupamento e fato da EMPRESA, nao do papel**: se a ON foi agrupada
+1:9, a PN foi agrupada 1:9.
+
+`master/eventos.py::herdar_entre_classes` -- quando a irma ja provou o evento com
+confianca alta ou media, o fator dela vale para esta classe tambem. Conservadora de
+proposito: a razao de preco DESTA classe tem que ser compativel com o fator herdado (20%),
+senao seria carimbar evento que o preco dela nao viu; e a linha ja tinha que ser candidata,
+entao nao se inventa evento em dia parado.
+
+Resultado: **70 fatores herdados**, confianca alta de 1.917 para 1.987, correlacao de
+0,9232 para 0,9247. A trava continua: AMER3, PCAR3 e a COVID na PETR4 seguem descartadas.
+
+Tres testes novos travam a regra, incluindo o caso em que a heranca NAO pode alcancar
+(PN que caiu 2% num dia em que a ON foi agrupada 1:9 -- aplicar 1/9 ali criaria -89% do
+nada). Testes: 71 -> 74.
+
+**A licao, e ela vale mais que o conserto**: esse erro estava ha meses na base, num papel
+liquido e conhecido, e nenhuma auditoria interna o pegou -- porque por dentro a serie era
+coerente consigo mesma. So a comparacao com um dado que nao e nosso mostrou. Auditoria
+interna acha inconsistencia; so referencia externa acha erro sistematico.
+
 ---
 
 ## 3. Estado atual da base

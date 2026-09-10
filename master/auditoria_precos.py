@@ -54,7 +54,12 @@ def _carteira_mensal() -> pd.DataFrame:
         return con.execute(f"""
             WITH base AS (
                 SELECT ticker, data,
-                       retorno_cru, retorno_qtd, retorno_total,
+                       -- retorno CRU: sem ajuste nenhum, direto do preco nominal. E o
+                       -- contrafactual do teste -- se ajustar nao aproximar a serie da
+                       -- referencia externa, o ajuste nao esta fazendo nada.
+                       fechamento / lag(fechamento) OVER (PARTITION BY ticker ORDER BY data)
+                         - 1 AS retorno_cru,
+                       retorno_qtd, retorno_total,
                        fechamento,
                        median(volume) OVER (
                            PARTITION BY ticker ORDER BY data
@@ -62,7 +67,8 @@ def _carteira_mensal() -> pd.DataFrame:
                        ) AS liquidez_passada,
                        lag(fechamento) OVER (PARTITION BY ticker ORDER BY data) AS fech_ant,
                        lag(data)       OVER (PARTITION BY ticker ORDER BY data) AS data_ant
-                FROM precos_diarios
+                FROM acoes_diario
+                WHERE classe IN ('on','pn')
             ),
             elegivel AS (
                 SELECT *, date_trunc('month', data) AS mes
