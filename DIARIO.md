@@ -139,7 +139,39 @@ evidência escrita.
 eu fizer e que voce for fazer algo, quero que anote num .md. além disso crie um
 repositorio no meu github para ficar mais facil de eu acompanhar."
 **Feito:** criado este arquivo com o histórico retroativo da sessão; repositório público
-`quantbr` criado no GitHub e primeiro commit publicado.
+https://github.com/JoaoPauloZangrandi/quantbr criado e primeiro commit publicado (43
+arquivos; os 1,4 GB de dados brutos e o warehouse ficam de fora pelo `.gitignore`).
 **Nota:** o João escolheu **público** depois de eu apontar que uma casa de research com
 capital próprio em vista perde a vantagem quando o método é aberto. Decisão dele,
 registrada aqui.
+
+### 2026-09-10 08:35 — claude — Etapa 5 fechada: provento por CNPJ
+**Feito:** coleta rechaveada por CNPJ concluída (996 nomes, 576 CNPJs, 27.018 proventos)
+e painel reconstruído.
+**Arquivos:** `ingest/proventos.py`, `painel.py`, `crosswalk/sucessao.csv`, `REGISTRO.md`.
+**Resultado:** ABEV3 sai de **zero para 32** proventos; KLBN3 e KLBN4 de zero para 70 cada;
+KLBN11 para 47. Cobertura de provento por volume **91,0% → 93,3%**.
+**Estado final das oito etapas:** linhas 1.678.985 → 1.761.012; tickers 1.129 → 1.146;
+papéis truncados 108 → 34; cobertura de CNPJ 92,2% → 93,1%; testes 32 → 62.
+
+### 2026-09-10 08:40 — claude — Resíduo classificado por causa
+**Feito:** `master/auditoria_tratamento.py --residuo` passa a nomear a causa de cada salto
+que sobrou, em vez de só contar.
+**Resultado:** papel de centavos 734 saltos (200 papéis, precisa de gabarito de evento
+anunciado); dia ex movimentado 367 (206, precisa da contagem de ações da CVM); regime
+especial 85 (35, linhas recuperadas na Etapa 2); não classificado 25 (24, inclui a queda
+real — é para ficar assim).
+
+---
+
+## O que está aberto
+
+| # | pendência | quem decide |
+|---|---|---|
+| 1 | 198 tickers sem CNPJ (148 morreram antes de 2018, quando o FCA da CVM ainda não trazia código de negociação) — lista em `crosswalk/pendentes_identidade.csv` | João, uma linha por vez, com evidência |
+| 2 | 734 saltos em papel de centavos: precisam do gabarito de evento anunciado da B3 (`stockDividends`), não de mais folga no detector | próximo bloco de trabalho |
+| 3 | 367 saltos de dia ex movimentado: precisam da contagem de ações da CVM como corroboração | próximo bloco de trabalho |
+| 4 | Cisão sem tratamento (PCAR3→Assaí, NATU3 07/2025) | crosswalk, caso a caso |
+| 5 | Retorno de delisting **observado** (edital de OPA, relação de troca) — hoje é convenção declarada | projeto próprio |
+| 6 | Dado contábil: destravaria ~32% mais papers da SSRN | decisão do João, ainda aberta |
+| 7 | `master/precos.py` está morto e marcado; apagar exige o OK do João | João |
