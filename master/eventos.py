@@ -48,6 +48,16 @@ TOLERANCIA_RELATIVA = 0.025
 # de 7/4 comecaria a passar. O crash da COVID na PETR4 (razao 1,4224, erro 5,17% sobre
 # 3/2) continua reprovado nos DOIS niveis; essa e a trava do desenho.
 TOLERANCIA_COM_EVIDENCIA = 0.05
+# Folga maior ainda, liberada SO quando a quantidade de acoes da CVM confirma o fator.
+# A diferenca de natureza justifica: nos outros niveis o preco tem que PROVAR o evento
+# sozinho, e a fracao redonda e toda a prova que existe. Aqui o evento ja foi medido por
+# fora, numa fonte que nao e a B3 -- ao preco resta so ser aproximadamente consistente.
+# Foi o que destravou o desdobramento 8:1 da MGLU3 (erro de preco 5,2% e 5,7%, contagem
+# de acoes 8,81 e 8,52) e o 6:1 da CASH3 (erro 7,8%, contagem 6,36).
+# A trava continua valendo: AMER3 (queda real, 10,3%), PCAR3 (cisao do Assai, 11,1%) e a
+# COVID na PETR4 (5,2%) tem razao de acoes = 1,00 -- nenhuma emissao aconteceu --, entao
+# nao ganham a folga e continuam de fora.
+TOLERANCIA_COM_ACOES = 0.10
 # Denominador maximo da fracao. ESTE PARAMETRO E O CORACAO DO DETECTOR e ja errou feio:
 # com denominador 20, as fracoes ficam tao densas que qualquer razao cai a 2% de alguma,
 # e o teste de "razao redonda" deixa de testar coisa nenhuma. O caso que pegou o erro foi
@@ -76,6 +86,16 @@ JANELA_QUANTIDADE = 5
 # corte ao preco por acao jogaria os 238 papeis cotados por mil (CMIG4, ELET3, SBSP3,
 # LREN3, BRKM5...) inteiros no balde de centavos, e o grupamento de 500:1 da CMIG4, que
 # e o evento mais bem documentado dessa faixa, ficaria de fora do ajuste.
+# Tolerancia para casar o fator de preco com a variacao da QUANTIDADE DE ACOES da CVM.
+# Larga de proposito (15%): a contagem anual do FRE mistura o evento com emissao, recompra
+# e conversao ocorridas no mesmo ano, entao ela nunca bate exato. O que ela oferece nao e
+# precisao, e INDEPENDENCIA -- vem da CVM, nao do preco, e por isso nao sofre nem do tick
+# de R$0,01 nem do movimento do dia ex, que sao as duas fontes de erro do detector.
+# Medido nos casos que o preco sozinho nao provava: MGLU3 8,81 e 8,53 (desdobramento 8:1
+# reprovado por 5,2% de erro), CASH3 6,36 (6:1 reprovado por 7,8%), TRPL4 4,000 exato,
+# IRBR3 3,000 exato.
+TOLERANCIA_ACOES = 0.15
+
 PRECO_MINIMO_CONFIAVEL = 1.00
 
 
@@ -86,6 +106,8 @@ class Parametros:
     tolerancia_com_evidencia: float = TOLERANCIA_COM_EVIDENCIA
     denominador_maximo: int = DENOMINADOR_MAXIMO
     razao_so_inteira: float = RAZAO_SO_INTEIRA
+    tolerancia_acoes: float = TOLERANCIA_ACOES
+    tolerancia_com_acoes: float = TOLERANCIA_COM_ACOES
     janela: int = JANELA_QUANTIDADE
     preco_minimo: float = PRECO_MINIMO_CONFIAVEL
 
@@ -124,6 +146,53 @@ def fracao_mais_proxima(x: float, denominador_maximo: int,
     return valor, abs(x - valor) / valor
 
 
+def _razao_de_acoes(con) -> pd.DataFrame:
+    """Variacao ano a ano da quantidade de acoes, por ticker, a partir do FRE da CVM.
+
+    A ideia e a mais simples que existe em evento de quantidade e vale a pena escrever:
+    desdobramento nao cria valor, so reparte. Se o numero de acoes multiplica por 8, o
+    preco divide por 8 -- o valor de mercado nao muda. Entao a contagem de acoes e uma
+    SEGUNDA MEDIDA do mesmo fator, e ela vem de outra fonte (a CVM), imune aos dois erros
+    que atrapalham o preco: o tick de R$0,01 em papel de centavos e o movimento do proprio
+    dia ex.
+
+    Limite honesto: o FRE e ANUAL, entao esta razao mistura o evento com emissao, recompra
+    e conversao do mesmo ano, e nao data o evento. Serve para CONFIRMAR um candidato que o
+    preco ja apontou -- nunca para criar um evento sozinha.
+
+    A janela e de dois anos (o do evento e o seguinte) porque a data de referencia do FRE
+    nao coincide com a data ex, e um evento de dezembro aparece no formulario do ano
+    seguinte.
+    """
+    if not (warehouse.table_exists(con, "cvm_capital_social")
+            and warehouse.table_exists(con, "master_ticker")):
+        return pd.DataFrame(columns=["ticker", "ano", "razao_acoes"])
+    return con.execute("""
+        WITH a AS (
+            SELECT lpad(regexp_replace(CNPJ_Companhia, '[^0-9]', '', 'g'), 14, '0') AS cnpj,
+                   ano_fre,
+                   arg_max(Quantidade_Total_Acoes, Versao) AS qtd
+            FROM cvm_capital_social
+            WHERE Quantidade_Total_Acoes > 0
+            GROUP BY 1, 2
+        ),
+        r AS (
+            SELECT cnpj, ano_fre,
+                   qtd / nullif(lag(qtd) OVER (PARTITION BY cnpj ORDER BY ano_fre), 0)
+                     AS razao_acoes
+            FROM a
+        ),
+        t AS (
+            SELECT DISTINCT ticker,
+                   lpad(regexp_replace(cnpj, '[^0-9]', '', 'g'), 14, '0') AS cnpj
+            FROM master_ticker WHERE cnpj IS NOT NULL
+        )
+        SELECT t.ticker, r.ano_fre AS ano, r.razao_acoes
+        FROM r JOIN t USING (cnpj)
+        WHERE r.razao_acoes IS NOT NULL
+    """).df()
+
+
 def _serie_por_ticker(con) -> pd.DataFrame:
     """Serie por ticker com o preco POR ACAO, nao o preco cotado.
 
@@ -158,6 +227,7 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     par = par or Parametros()
     with warehouse.connect(read_only=True) as con:
         df = _serie_por_ticker(con)
+        acoes = _razao_de_acoes(con)
 
     g = df.groupby("ticker", sort=False)
     df["fech_ant"] = g["fechamento"].shift(1)
@@ -232,6 +302,39 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # confirmou, e o salto de +100% ficava na serie.
     cand["fator_cotacao_mudou"] = cand["fator_cotacao"] != cand["fator_cot_ant"]
 
+    # CONFIRMACAO PELA QUANTIDADE DE ACOES (CVM). A terceira evidencia independente do
+    # preco, e a unica que vem de fora da B3. Desdobramento nao cria valor: se o numero de
+    # acoes multiplica por 8, o preco divide por 8. Entao a contagem e uma segunda medida
+    # do mesmo fator -- e ela nao sofre do tick de R$0,01 nem do movimento do dia ex, que
+    # sao justamente os dois erros que sobraram no detector.
+    if acoes.empty:
+        cand["razao_acoes"] = np.nan
+    else:
+        cand["ano"] = pd.to_datetime(cand["data"]).dt.year
+        # Janela de dois anos: a data de referencia do FRE nao coincide com a data ex, e
+        # evento de dezembro aparece no formulario do ano seguinte.
+        # Dentro da janela, fica a razao MAIS PROXIMA do fator sugerido. Nao e escolher
+        # o que da certo: o FRE nao data o evento, entao "houve uma variacao de acoes
+        # compativel na janela?" e a pergunta que a fonte consegue responder. Ela confirma
+        # um candidato que o preco ja apontou; nunca cria evento sozinha.
+        melhor, erro_melhor = None, None
+        for desloc in (0, 1):
+            tmp = acoes.copy()
+            tmp["ano"] = tmp["ano"] - desloc
+            j = cand[["ticker", "ano"]].merge(tmp, on=["ticker", "ano"], how="left")
+            r = j["razao_acoes"].values
+            e = np.abs(r / cand["fator_sugerido"].values - 1)
+            if melhor is None:
+                melhor, erro_melhor = r, e
+            else:
+                troca = np.less(e, erro_melhor, where=~np.isnan(e), out=np.zeros_like(e, dtype=bool))
+                melhor = np.where(troca, r, melhor)
+                erro_melhor = np.where(troca, e, erro_melhor)
+        cand["razao_acoes"] = melhor
+    cand["acoes_confirmam"] = (
+        (cand["razao_acoes"] / cand["fator_sugerido"] - 1).abs() <= par.tolerancia_acoes
+    ).fillna(False)
+
     # TOLERANCIA EM DOIS NIVEIS. A folga maior so vale onde ha evidencia que NAO vem da
     # propria fracao -- razao extrema ou classe irma no mesmo pregao. Onde a razao e
     # pequena e nada corrobora, continua valendo o criterio apertado, que e o que mantem
@@ -239,6 +342,9 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     tolerancia = np.where(
         cand["razao_extrema"] | cand["classes_confirmam"] | cand["fator_cotacao_mudou"],
         par.tolerancia_com_evidencia, par.tolerancia)
+    # A confirmacao pela CVM manda em cima de qualquer outra: e a unica medida do fator
+    # que nao vem do preco.
+    tolerancia = np.where(cand["acoes_confirmam"], par.tolerancia_com_acoes, tolerancia)
     cand["tolerancia_usada"] = tolerancia
     cand["razao_redonda"] = cand["erro_relativo"] <= tolerancia
     # Num evento de quantidade, a quantidade negociada acompanha o fator de perto. A folga
@@ -260,9 +366,11 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # mesma empresa concordando no mesmo pregao.
     # Casos que revelaram: JBDU3 e JBDU4 em 30/04/2007, TEKA3 e TEKA4 em 01-05/06/2009 --
     # grupamentos de ~900:1 no balde de centavos, deixando +90.000% de retorno falso.
+    # A CVM nao sabe nada sobre o tick de R$0,01 da B3, entao a confirmacao por
+    # quantidade de acoes supera o veto de papel de centavos sozinha.
     cand["evidencia_supera_tick"] = (
         cand["razao_extrema"] & (cand["classes_confirmam"] | cand["fator_cotacao_mudou"])
-    )
+    ) | cand["acoes_confirmam"]
     cand["preco_ok"] = cand["preco_confiavel"] | cand["evidencia_supera_tick"]
 
     cand["tipo_sugerido"] = np.where(cand["fator_sugerido"] > 1, "desdobramento", "grupamento")
@@ -270,6 +378,7 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     cond = [
         # Confirmacao entre classes basta sozinha: e evidencia mais forte que quantidade
         # ou financeiro, porque nao ha mecanismo de mercado que a produza por acaso.
+        cand["razao_redonda"] & cand["preco_ok"] & cand["acoes_confirmam"],
         cand["razao_redonda"] & cand["preco_ok"] & cand["classes_confirmam"],
         cand["razao_redonda"] & cand["preco_ok"] & cand["fator_cotacao_mudou"],
         cand["razao_redonda"] & cand["preco_ok"] & cand["razao_extrema"],
@@ -283,7 +392,8 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
         cand["razao_redonda"],
     ]
     cand["confianca"] = np.select(
-        cond, ["alta", "alta", "alta", "alta", "media", "baixa", "preco_de_centavos"],
+        cond, ["alta", "alta", "alta", "alta", "alta", "media", "baixa",
+               "preco_de_centavos"],
         default="descartado")
 
     cols = ["ticker", "isin", "data", "data_ant", "fech_ant", "fechamento",
@@ -291,7 +401,8 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
             "razao_preco", "fator_sugerido", "erro_relativo", "razao_quantidade",
             "razao_financeiro", "tolerancia_usada", "razao_redonda", "quantidade_confirma",
             "financeiro_estavel", "preco_confiavel", "preco_ok",
-            "evidencia_supera_tick", "classes_confirmam", "razao_extrema",
+            "evidencia_supera_tick", "razao_acoes", "acoes_confirmam",
+            "classes_confirmam", "razao_extrema",
             "fator_cotacao_mudou",
             "tipo_sugerido", "confianca"]
     return cand[cols].reset_index(drop=True)

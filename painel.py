@@ -245,6 +245,27 @@ def _fatores_de_provento(px: pd.DataFrame) -> pd.DataFrame:
 # numero. O formulario e entregue por volta de maio do ano seguinte, entao liberar em
 # 1o de julho e conservador e defensavel. Sem essa defasagem, o painel saberia em janeiro
 # a quantidade de acoes de um documento que so seria publicado em maio -- look-ahead.
+# DUAS CONVENCOES DE RETORNO DE DELISTING, lado a lado -- a mesma logica de "nao existe
+# o preco" aplicada aqui. Quando o papel sai da bolsa sem oferta e sem sucessor, o que o
+# acionista de fato levou nao esta em lugar nenhum da base, e escolher um numero e
+# ARBITRAR. Entao a base entrega os dois e a escolha vira campo do pre-registro.
+#
+#   retorno_delisting              -> -30%, de Shumway (1997), "The Delisting Bias in CRSP
+#                                     Data", Journal of Finance. Ele mediu os delistings em
+#                                     que o retorno final EXISTIA e usou a media para imputar
+#                                     nos que faltavam. E o padrao da literatura, e o numero
+#                                     que um paper da SSRN vai ter usado. Shumway e Warther
+#                                     (1999) estimam -55% para o Nasdaq, mercado de empresa
+#                                     menor e mais fragil -- mais perto do nosso caso.
+#   retorno_delisting_conservador  -> -100%. Premissa de que a posicao virou po. Defensavel
+#                                     no Brasil, onde nao ha mercado de balcao organizado
+#                                     para acao cancelada: o -30% americano embute a venda
+#                                     no OTC, que aqui simplesmente nao existe.
+#
+# Nenhum dos dois foi observado. `delisting_observado` continua FALSE nos dois casos, e
+# qualquer resultado sensivel a essa escolha tem que reportar as duas versoes.
+RETORNO_DELISTING_LITERATURA = -0.30
+
 MESES_DEFASAGEM_FRE = 6
 
 
@@ -520,7 +541,7 @@ def construir(ano_inicio: int = 2005) -> int:
         # Regra 8 do projeto: serie com buraco nao e proibida, serie com buraco nao
         # declarado e. Por isso `delisting_observado` existe -- ele diz que o numero e
         # convencao, nao medida.
-        con.execute("""
+        con.execute(f"""
             CREATE OR REPLACE TABLE acoes_diario AS
             WITH fim_da_base AS (SELECT max(data) AS d FROM acoes_diario),
             ultimo AS (
@@ -560,7 +581,9 @@ def construir(ano_inicio: int = 2005) -> int:
             )
             SELECT *,
                    CASE WHEN motivo_saida IN ('liquidada', 'cancelamento_de_oficio')
-                        THEN -1.0 END AS retorno_delisting,
+                        THEN {RETORNO_DELISTING_LITERATURA} END AS retorno_delisting,
+                   CASE WHEN motivo_saida IN ('liquidada', 'cancelamento_de_oficio')
+                        THEN -1.0 END AS retorno_delisting_conservador,
                    CASE WHEN motivo_saida IS NULL THEN NULL ELSE FALSE END
                         AS delisting_observado
             FROM marcado

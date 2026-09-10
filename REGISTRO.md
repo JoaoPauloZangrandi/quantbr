@@ -939,6 +939,101 @@ Saltos residuais: 59 resolvidos, 176 novos -- e os novos sao a populacao recuper
 Etapa 2 (grupamento de centavos em recuperacao judicial), nao regressao. No regime
 **normal** os saltos cairam de 1.094 para 1.040.
 
+### 10/09/2026 - Pesquisa na literatura, e o que dela virou codigo
+
+Joao pediu: pesquisar a fundo como a literatura e a industria tratam esses problemas, e
+aplicar o que servir. Quatro buscas e dois documentos primarios depois, tres coisas
+entraram na base e uma mudou a expectativa do que e "bom o suficiente".
+
+**1. O QUE A LITERATURA BRASILEIRA DE FATO FAZ -- e a barra e mais baixa do que parecia.**
+
+O paper mais proximo do nosso problema e de 2026: "Lottery-type stocks in Brazil: Evidence
+from a survivorship-bias-corrected universe" (Revista Brasileira de Financas, 24, 2026).
+Ele constroi exatamente o universo que estamos construindo: COTAHIST oficial, 1.097
+tickers, dez/1999 a dez/2024, incluindo papel deslistado. Filtros: acao domestica ON/PN/
+unit, minimo de 10 pregoes no mes, preco de fechamento positivo, minimo de 12 meses de
+retorno; unidade de analise e o EMISSOR, ficando com a classe mais liquida quando ha mais
+de uma.
+
+E a secao 3.3, "Data limitations and scope", diz com todas as letras:
+
+> "The COTAHIST series are nominal closing prices and carry **no adjustment for corporate
+> actions** -- splits, reverse splits, stock dividends, or interest on own capital -- and
+> monthly returns are computed directly from consecutive closes as r_t = P_t/P_{t-1} - 1.
+> **I do not implement a formal split adjustment**, and I have not run a sensitivity
+> analysis to corporate events."
+
+Ou seja: um paper publicado, revisado, que quantifica survivorship bias em +1,90 p.p. ao
+mes no alfa de loteria, **nao ajusta evento corporativo nenhum**. Nossa base ja esta acima
+disso. Isso nao e desculpa para parar -- e a referencia honesta de onde a barra esta.
+
+O paper tambem da uma convencao de universo que vale adotar quando formos rodar teste:
+agregar por EMISSOR e ficar com a classe mais liquida do mes. Fica anotado; nao muda a
+base, muda a camada de analise.
+
+**2. QUANTIDADE DE ACOES DA CVM COMO TERCEIRA EVIDENCIA (aplicado).**
+
+O criterio padrao de deteccao de evento de quantidade e a relacao que qualquer manual
+descreve: se as acoes multiplicam por N, o preco divide por N, e o valor de mercado nao
+muda. Ou seja, **a contagem de acoes e uma segunda medida do mesmo fator** -- e vem da
+CVM, nao da B3, entao e imune aos dois erros que sobravam no detector: o tick de R$0,01 em
+papel de centavos e o movimento do proprio dia ex.
+
+Implementado em `master/eventos.py::_razao_de_acoes`, sobre o `cvm_capital_social` (FRE,
+2010-2026) que ja estava no disco. Verificado antes de construir:
+
+| ticker | evento | erro do preco | razao de acoes na CVM |
+|---|---|---|---|
+| MGLU3 09/2017 | desdobramento 8:1 | 5,2% (reprovava) | **8,81** |
+| MGLU3 08/2019 | desdobramento 8:1 | 5,7% (reprovava) | **8,52** |
+| CASH3 09/2021 | desdobramento 6:1 | 7,8% (reprovava) | **6,36** |
+| TRPL4 2018/19 | desdobramento 4:1 | -- | **4,000** exato |
+| IRBR3 2019 | desdobramento 3:1 | -- | **3,000** exato |
+
+Tres regras novas, nesta ordem de forca:
+- `acoes_confirmam` -- a razao de acoes bate com o fator dentro de 15%. Folga larga de
+  proposito: o FRE e anual e mistura o evento com emissao e recompra do mesmo ano. O que
+  ele oferece nao e precisao, e INDEPENDENCIA.
+- `TOLERANCIA_COM_ACOES = 10%` -- quando a CVM confirma, o preco so precisa ser
+  aproximadamente consistente. Nos outros niveis a fracao redonda e toda a prova que
+  existe; aqui o evento ja foi medido por fora.
+- a confirmacao da CVM **supera o veto de papel de centavos** sozinha: a CVM nao sabe nada
+  sobre o tick de R$0,01 da B3.
+
+**A trava que valida o desenho**: AMER3 (queda real de 77%), PCAR3 (cisao do Assai) e a
+COVID na PETR4 tem razao de acoes de **1,00** -- nenhuma emissao aconteceu, porque nenhum
+evento de quantidade aconteceu. Sem confirmacao nao ha folga, e os tres continuam de fora
+mesmo com erro de preco perto do limite. Virou teste.
+
+Resultado: 165 candidatos confirmados pela CVM; confianca alta de 1.879 para 1.917.
+Residuo de saltos **1.211 -> 1.153** (centavos 734 -> 690, dia ex 367 -> 353).
+
+**3. RETORNO DE DELISTING: A LITERATURA IMPUTA -30%, NAO -100% (aplicado).**
+
+Shumway (1997), "The Delisting Bias in CRSP Data", Journal of Finance: delisting por
+desempenho ruim e surpresa, e o retorno final costuma faltar justamente ali -- delisting
+por fusao ou migracao raramente falta. Ele mediu os casos em que o retorno EXISTIA e usou
+a media para imputar nos que faltavam: **-30%**. Shumway e Warther (1999) estimam **-55%**
+para o Nasdaq -- mercado de empresa menor e mais fragil, e a correcao fez o efeito tamanho
+no Nasdaq desaparecer.
+
+Nossa convencao anterior, -100%, era mais extrema que a literatura inteira. Mas trocar por
+-30% tambem seria arbitrar: o -30% americano embute a venda no mercado de balcao, que para
+acao cancelada no Brasil simplesmente nao existe.
+
+Entao a base passa a entregar **as duas**, lado a lado, como ja faz com preco:
+- `retorno_delisting` = -0,30 (Shumway 1997, o numero que um paper da SSRN tera usado)
+- `retorno_delisting_conservador` = -1,00 (a posicao virou po)
+
+Nenhuma foi observada -- `delisting_observado` segue FALSE nas duas. Qualquer resultado
+sensivel a essa escolha tem que reportar as duas versoes.
+
+**4. O QUE A PESQUISA NAO RESOLVEU.** Nao existe fonte gratuita e completa de evento
+corporativo para empresa que saiu da bolsa no Brasil. O que aparece e pago (UP2DATA da
+B3, Economatica, Bloomberg) ou incompleto (APIs que cobrem so empresa viva). O caminho que
+sobra e o gabarito de evento anunciado da B3 para quem ainda esta listado, mais crosswalk
+humano para o resto -- que e o desenho que ja temos.
+
 ---
 
 ## 3. Estado atual da base

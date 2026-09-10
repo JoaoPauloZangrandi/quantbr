@@ -162,6 +162,30 @@ anunciado); dia ex movimentado 367 (206, precisa da contagem de ações da CVM);
 especial 85 (35, linhas recuperadas na Etapa 2); não classificado 25 (24, inclui a queda
 real — é para ficar assim).
 
+### 2026-09-10 09:10 — claude — Pesquisa na literatura e aplicação
+**Pedido:** "pesquise profundamente na internet como tratar esse tipo de problema que
+estamos tendo, caso ache tente aplicar na nossa base de dados e se não achar pode
+continuar alterando o que for necessário na base para que ela fique suficientemente
+satisfatório para ir pra produção"
+**Feito:** quatro buscas e dois documentos primários lidos (paper da RBFin 2026 sobre
+lottery stocks no Brasil; Shumway 1997/1999 sobre viés de delisting no CRSP). Três coisas
+viraram código.
+**Arquivos:** `master/eventos.py`, `painel.py`, `tests/test_deteccao_eventos.py`,
+`REGISTRO.md`.
+**Resultado:**
+- **Quantidade de ações da CVM virou a terceira evidência do detector.** Se as ações
+  multiplicam por N, o preço divide por N — é uma segunda medida do mesmo fator, vinda de
+  fora da B3. Destravou MGLU3 8:1 (erro de preço 5,2%, CVM diz 8,81) e CASH3 6:1 (erro
+  7,8%, CVM diz 6,36). Resíduo **1.211 → 1.153**.
+- **Retorno de delisting: a literatura imputa −30%, não −100%** (Shumway 1997). A base
+  passa a entregar as duas convenções lado a lado.
+- **Descoberta que recalibra a expectativa:** o paper da RBFin (2026), publicado, com
+  1.097 tickers do COTAHIST, declara que **não faz ajuste de evento corporativo nenhum**.
+  Nossa base já está acima do que a literatura publicada usou.
+**Trava validada:** AMER3, PCAR3 e a COVID na PETR4 têm razão de ações **1,00** — nenhuma
+emissão — então não ganham a folga e continuam fora. Virou teste.
+**Testes:** 62 → 68.
+
 ---
 
 ## O que está aberto

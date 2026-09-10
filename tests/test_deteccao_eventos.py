@@ -133,3 +133,52 @@ def test_covid_continua_reprovada_com_a_folga_maior():
     como desdobramento."""
     _, erro = fracao_mais_proxima(1.422430, DENOMINADOR_MAXIMO)
     assert erro > TOLERANCIA_COM_EVIDENCIA
+
+
+# ---------------------------------------------------------------------------
+# 10/09/2026: a quantidade de acoes da CVM como terceira evidencia.
+# ---------------------------------------------------------------------------
+# Pesquisa que motivou: a relacao "se as acoes multiplicam por N, o preco divide por N,
+# e o valor de mercado nao muda" e o criterio padrao de deteccao de evento de quantidade.
+# A contagem de acoes do FRE da CVM e uma SEGUNDA MEDIDA do mesmo fator, vinda de fora da
+# B3 -- imune ao tick de R$0,01 e ao movimento do dia ex, que sao os dois erros que
+# sobravam no detector.
+
+from master.eventos import TOLERANCIA_ACOES, TOLERANCIA_COM_ACOES
+
+
+@pytest.mark.parametrize("ticker,fator,erro_preco,razao_acoes,descricao", [
+    ("MGLU3", 8.0, 0.052149, 8.813913, "MGLU3 05/09/2017, desdobramento 8:1"),
+    ("MGLU3", 8.0, 0.057377, 8.524682, "MGLU3 06/08/2019, desdobramento 8:1"),
+    ("CASH3", 6.0, 0.077572, 6.355920, "CASH3 10/09/2021, desdobramento 6:1"),
+])
+def test_cvm_destrava_evento_que_o_preco_sozinho_nao_provava(
+        ticker, fator, erro_preco, razao_acoes, descricao):
+    """Os tres eram descartados: o erro de preco ficava acima da tolerancia com evidencia.
+
+    A contagem de acoes confirma o fator por fora, e ai o preco so precisa ser
+    aproximadamente consistente -- ele deixa de ser a unica prova.
+    """
+    confirma = abs(razao_acoes / fator - 1) <= TOLERANCIA_ACOES
+    assert confirma, f"{descricao}: a CVM deveria confirmar o fator"
+    assert erro_preco <= TOLERANCIA_COM_ACOES, f"{descricao}: deveria passar com a folga da CVM"
+
+
+@pytest.mark.parametrize("ticker,fator,erro_preco,razao_acoes,descricao", [
+    ("AMER3", 4.0, 0.102941, 1.000000, "colapso da Americanas 12/01/2023: -77% REAL"),
+    ("PCAR3", 4.0, 0.110587, 1.002538, "cisao do Assai 01/03/2021: nao e desdobramento"),
+    ("PETR4", 1.5, 0.051713, 1.000000, "crash da COVID na PETR4 09/03/2020"),
+])
+def test_a_folga_da_cvm_nao_abre_a_porta_para_queda_real(
+        ticker, fator, erro_preco, razao_acoes, descricao):
+    """A trava do desenho, e a razao de a folga ser condicional e nao geral.
+
+    Nos tres a quantidade de acoes ficou em 1,00 -- nenhuma emissao aconteceu, porque
+    nenhum evento de quantidade aconteceu. Sem confirmacao da CVM nao ha folga, e os tres
+    continuam de fora mesmo com erro de preco proximo do limite.
+
+    Se alguem tornar TOLERANCIA_COM_ACOES incondicional, a queda de 77% da Americanas
+    volta a ser apagada da serie ajustada.
+    """
+    confirma = abs(razao_acoes / fator - 1) <= TOLERANCIA_ACOES
+    assert not confirma, f"{descricao}: a CVM NAO pode confirmar isso"
