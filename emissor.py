@@ -67,6 +67,17 @@ import warehouse
 
 TABELA = "emissor_mensal"
 
+# Tarifa da B3 no mercado a vista, swing trade, pessoa fisica: 0,0300% por lado
+# (0,0250% de liquidacao + 0,0050% de negociacao), ja com PIS/COFINS e ISS embutidos.
+# Fonte: tabela de tarifas da B3, consultada em 10/09/2026. Corretagem NAO entra: varia
+# por corretora e hoje e zero em boa parte delas.
+EMOLUMENTO_B3 = 0.000300
+
+# Fracao do volume diario tipico que uma ordem pode representar sem virar o preco contra
+# si mesma. 10% e conservador e e a ordem de grandeza usada na literatura de capacidade;
+# nao e lei, e por isso vira coluna declarada e nao filtro.
+TETO_PARTICIPACAO_ADTV = 0.10
+
 # Tudo ate `base` vale com ou sem balanco; o bloco contabil e opcional.
 SQL_BASE = """
 WITH diario AS (
@@ -82,6 +93,14 @@ por_ticker AS (
            count(*)                                  AS pregoes_no_mes,
            sum(volume)                               AS volume_mes,
            median(volume)                            AS volume_mediano,
+           -- CUSTO E CAPACIDADE. E aqui que a tese de "capital pequeno tem vantagem" se
+           -- prova ou morre: instituicao nao entra em papel de R$50 mil/dia, mas o
+           -- spread desse papel come o retorno antes de o sinal aparecer.
+           median(spread_relativo)                    AS spread_mediano,
+           -- Amihud (2002): impacto de preco por real negociado. Escalado por 1e6 para
+           -- ficar legivel. Mede o que o spread nao mede -- o quanto o preco anda quando
+           -- alguem insiste em negociar.
+           median(abs(retorno_qtd) / nullif(volume, 0)) * 1e6 AS amihud,
            last(fechamento ORDER BY data)            AS preco_fim,
            last(valor_mercado_empresa ORDER BY data) AS valor_mercado_empresa,
            last(regime ORDER BY data)                AS regime,
@@ -99,6 +118,14 @@ por_ticker AS (
            bool_or(tem_provento)                     AS teve_provento
     FROM diario
     GROUP BY cnpj, ticker, ano_mes
+),
+-- Quantos pregoes o MERCADO teve no mes. O COTAHIST so tem linha para o dia em que o
+-- papel negociou, entao a diferenca entre isto e `pregoes_no_mes` e o numero de dias em
+-- que o papel simplesmente nao negociou -- que e uma medida de iliquidez por si so, e a
+-- que Lesmond usa. Nao da para ver isso olhando so as linhas que existem.
+calendario AS (
+    SELECT strftime(data, '%Y-%m') AS ano_mes, count(DISTINCT data) AS pregoes_no_mercado
+    FROM acoes_diario GROUP BY 1
 ),
 -- A ESCOLHA DA CLASSE, POINT-IN-TIME E ESTAVEL: liquidez dos 12 meses ANTERIORES.
 com_liquidez_anterior AS (
@@ -125,12 +152,17 @@ base AS (
            preco_fim, volume_mes, volume_mediano, valor_mercado_empresa,
            retorno_qtd, retorno_total, teve_evento, teve_provento,
            motivo_saida, retorno_delisting, retorno_delisting_conservador,
+           spread_mediano, amihud,
            ticker <> lag(ticker) OVER (PARTITION BY cnpj ORDER BY ano_mes)
              AS trocou_de_classe,
            (date_trunc('month', strptime(ano_mes, '%Y-%m'))
               + INTERVAL 1 MONTH - INTERVAL 1 DAY)::DATE AS fim_do_mes
     FROM ranqueado
     WHERE posicao = 1
+),
+base_com_calendario AS (
+    SELECT b.*, c.pregoes_no_mercado
+    FROM base b LEFT JOIN calendario c USING (ano_mes)
 )
 """
 
@@ -162,7 +194,7 @@ com_balanco AS (
            c.dt_receb AS contabil_dt_receb,
            c.versao   AS contabil_versao,
            c.contabil_consolidado
-    FROM base b
+    FROM base_com_calendario b
     LEFT JOIN LATERAL (
         -- O que ja era PUBLICO no ultimo dia do mes. Entre versoes, a mais recente ja
         -- entregue ate essa data -- nunca a definitiva, que so existiu depois.
@@ -173,6 +205,21 @@ com_balanco AS (
     ) c ON TRUE
 )
 SELECT * EXCLUDE (fim_do_mes),
+       -- ---------------- custo e capacidade ----------------
+       -- Ida e volta: compra no ask, vende no bid, paga tarifa dos dois lados. E o piso
+       -- do custo, nao a estimativa completa -- falta impacto de mercado, que depende do
+       -- tamanho da ordem e por isso e da camada de analise.
+       spread_mediano + 2 * {emolumento}                      AS custo_roundtrip,
+       -- Quanto da para negociar por dia sem virar o preco contra si. Fracao declarada do
+       -- volume tipico, nao lei.
+       volume_mediano * {teto}                                AS capacidade_dia,
+       -- Giro: volume do mes sobre o valor de mercado da empresa.
+       volume_mes / nullif(valor_mercado_empresa, 0)          AS turnover_mes,
+       -- Dias em que o papel NAO negociou, sobre os pregoes que o mercado teve. Iliquidez
+       -- que nao aparece no spread: papel que nao negocia nao tem spread ruim, tem spread
+       -- nenhum.
+       1.0 - pregoes_no_mes::DOUBLE / nullif(pregoes_no_mercado, 0)
+                                                              AS pct_dias_sem_negociar,
        -- Montados aqui porque o denominador (valor de mercado) e desta tabela e o
        -- numerador so existe depois do casamento point-in-time.
        patrimonio_liquido / nullif(valor_mercado_empresa, 0) AS book_to_market,
@@ -199,7 +246,7 @@ ORDER BY cnpj, ano_mes
 """
 
 SQL_SEM_BALANCO = SQL_BASE + """
-SELECT * EXCLUDE (fim_do_mes) FROM base ORDER BY cnpj, ano_mes
+SELECT * EXCLUDE (fim_do_mes) FROM base_com_calendario ORDER BY cnpj, ano_mes
 """
 
 
@@ -212,7 +259,8 @@ def construir() -> int:
             # Sem balanco o painel continua util para preco, retorno e tamanho; as
             # colunas contabeis simplesmente nao existem. Melhor do que falhar.
             print("  aviso: cvm_dfp nao existe -- painel sem colunas contabeis")
-        sql = SQL_COM_BALANCO if tem_dfp else SQL_SEM_BALANCO
+        sql = (SQL_COM_BALANCO if tem_dfp else SQL_SEM_BALANCO).format(
+            emolumento=EMOLUMENTO_B3, teto=TETO_PARTICIPACAO_ADTV)
         con.execute(f"DROP TABLE IF EXISTS {TABELA}")
         con.execute(f"CREATE TABLE {TABELA} AS {sql}")
         return con.execute(f"SELECT count(*) FROM {TABELA}").fetchone()[0]

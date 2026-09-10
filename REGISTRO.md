@@ -1264,6 +1264,84 @@ unico que ainda muda -- no maximo a cada 30 dias, em try proprio, como a de pape
 Testes: 74 -> 80. Seis deles travam o point-in-time, incluindo o caso em que a versao 3
 do balanco nao pode aparecer em abril porque so foi entregue em junho.
 
+### 10/09/2026 - Custo e capacidade: a tese de capital pequeno, medida
+
+Joao definiu o rumo: aprofundar onde grande instituicao nao cobre, porque ali pode haver
+edge para capital pequeno. Isso muda o que vale construir. Se a tese e operar onde
+instituicao nao entra, a variavel que decide nao e o sinal -- e o CUSTO e a CAPACIDADE.
+Edge em microcap quase sempre morre no spread, e a base precisa deixar isso mensuravel em
+vez de escondido.
+
+**A materia-prima ja estava na base e ninguem usava**: `melhor_compra` e `melhor_venda`, a
+melhor oferta no fechamento, com **99% de cobertura desde 2008**.
+
+**O gradiente de spread (2015+), por liquidez diaria:**
+
+| volume diario | spread mediano | p90 |
+|---|---|---|
+| > R$ 10 mi | 0,175% | 0,61% |
+| R$ 1-10 mi | 0,530% | 1,51% |
+| R$ 100 mil - 1 mi | 1,137% | 3,72% |
+| **< R$ 100 mil** | **3,279%** | **14,70%** |
+
+Dezenove vezes entre as pontas.
+
+**COLUNAS NOVAS.** Em `acoes_diario`: `spread_relativo` (diario). Em `emissor_mensal`:
+`spread_mediano`, `amihud` (Amihud 2002, impacto por real negociado), `custo_roundtrip`,
+`capacidade_dia`, `turnover_mes`, `pct_dias_sem_negociar`.
+
+Duas constantes declaradas, com fonte:
+- `EMOLUMENTO_B3 = 0,0300%` por lado (0,0250% liquidacao + 0,0050% negociacao), swing
+  trade, pessoa fisica, ja com PIS/COFINS e ISS. Tabela de tarifas da B3, 10/09/2026.
+  Corretagem NAO entra: varia por corretora e hoje e zero em boa parte delas.
+- `TETO_PARTICIPACAO_ADTV = 10%` do volume tipico -- fracao declarada, nao lei.
+
+`pct_dias_sem_negociar` exigiu um cuidado: o COTAHIST so tem linha no dia em que o papel
+negociou, entao dia parado nao aparece como zero, aparece como AUSENCIA. A coluna compara
+os pregoes do papel com os pregoes que o MERCADO teve no mes -- iliquidez que o spread nao
+mostra, porque papel que nao negocia nao tem spread ruim, tem spread nenhum.
+
+**O RESULTADO, E ELE TEM DUAS METADES QUE PRECISAM SER LIDAS JUNTAS.**
+
+Por faixa de tamanho da empresa (2015+):
+
+| tamanho | custo ida-volta | capacidade/dia | dias parado | Amihud |
+|---|---|---|---|---|
+| > R$ 10 bi | 0,20% | R$ 9,7 mi | 0% | 0,000 |
+| R$ 1-10 bi | 0,45% | R$ 853 mil | 0% | 0,002 |
+| **R$ 100 mi - 1 bi** | **1,39%** | **R$ 17,6 mil** | 0% | 0,063 |
+| < R$ 100 mi | **4,50%** | R$ 1,1 mil | 11,1% | 0,971 |
+
+Capital que cabe numa carteira de 20 papeis montada em 5 pregoes:
+
+| faixa | capital |
+|---|---|
+| > R$ 10 bi | R$ 969 milhoes |
+| R$ 1-10 bi | R$ 85 milhoes |
+| **R$ 100 mi - 1 bi** | **R$ 1,76 milhao** |
+| < R$ 100 mi | R$ 110 mil |
+
+Quanto a estrategia precisa render BRUTO so para pagar o custo:
+
+| faixa | 1 giro/ano | 4 giros | 12 giros |
+|---|---|---|---|
+| > R$ 10 bi | 0,20% | 0,79% | 2,36% |
+| R$ 1-10 bi | 0,45% | 1,81% | 5,43% |
+| R$ 100 mi - 1 bi | 1,39% | 5,58% | **16,73%** |
+| < R$ 100 mi | 4,50% | 18,02% | **54,05%** |
+
+**A LEITURA.** A primeira metade confirma a tese: na faixa de R$100 mi a R$1 bi cabem
+R$1,76 milhao numa carteira de 20 papeis. **Nenhum fundo opera com isso** -- e por isso a
+faixa esta vazia de instituicao. A segunda metade impoe a condicao: a 12 rebalanceamentos
+por ano essa mesma faixa custa **16,7% ao ano so de custo**, e a faixa abaixo custa 54%.
+
+Entao a conclusao que a base sustenta com numero, e nao com folclore: **o espaco existe,
+mas so a giro baixo.** A faixa abaixo de R$100 milhoes e armadilha dupla -- comporta
+R$110 mil E cobra 54% ao ano a giro mensal. E isso restringe quais papers da SSRN valem
+replicar: os de sinal persistente, nao os de reversao rapida.
+
+Testes: 80 -> 90.
+
 ---
 
 ## 3. Estado atual da base

@@ -383,6 +383,17 @@ def construir(ano_inicio: int = 2005) -> int:
                 -- spread relativo e proxy padrao de liquidez na literatura.
                 melhor_compra / fator_cotacao AS melhor_compra,
                 melhor_venda  / fator_cotacao AS melhor_venda,
+                -- SPREAD RELATIVO no fechamento. Sai daqui, e nao da camada de analise,
+                -- porque depende do bid e do ask normalizados pela unidade de cotacao --
+                -- que so este bloco conhece.
+                --
+                -- E a variavel que decide se um edge de capital pequeno e real. Medido na
+                -- base (2015+): spread mediano de 0,175% em papel acima de R$10 mi/dia e
+                -- de 3,279% abaixo de R$100 mil/dia. Dezenove vezes. Ida e volta na cauda
+                -- iliquida custa 6,6% -- mais do que quase toda anomalia publicada rende.
+                CASE WHEN melhor_compra > 0 AND melhor_venda > melhor_compra
+                     THEN (melhor_venda - melhor_compra)
+                          / ((melhor_venda + melhor_compra) / 2) END AS spread_relativo,
                 volume,                   -- financeiro, em reais (nao depende da unidade)
                 quantidade,               -- acoes negociadas
                 negocios

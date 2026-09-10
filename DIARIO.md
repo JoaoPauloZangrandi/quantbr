@@ -286,6 +286,33 @@ ele marca como prioridade alta — "valor com qualidade em empresas menores" —
 principal obstáculo "contabilidade disponível na data certa", que é exatamente o que este
 bloco entrega. Não commitei `knowledge/`: é dele e pode estar pela metade.
 
+### 2026-09-10 18:45 — claude — Custo e capacidade: a tese de capital pequeno, medida
+**Pedido:** "continue se aprofundando na base. falei para ele que quero me aprofundar em
+coisas que grandes instituição não cobrem porque pode ter algum edge pra mim que vou operar
+com capital pequeno"
+**Feito:** camada de custo e capacidade, a partir da melhor oferta de compra e venda que já
+estava na base e ninguém usava (99% de cobertura desde 2008).
+**Arquivos:** `painel.py`, `emissor.py`, `tests/test_custo_capacidade.py` (novo),
+`REGISTRO.md`.
+**Colunas novas:** `spread_relativo` (diário); `spread_mediano`, `amihud`,
+`custo_roundtrip`, `capacidade_dia`, `turnover_mes`, `pct_dias_sem_negociar` (mensal).
+Constantes declaradas com fonte: `EMOLUMENTO_B3 = 0,0300%` por lado (tabela da B3,
+swing trade PF) e `TETO_PARTICIPACAO_ADTV = 10%`.
+**Resultado — a tese medida, e ela tem duas metades:**
+
+| tamanho | custo ida-volta | capital que cabe (20 papéis, 5 pregões) | custo a 12 giros/ano |
+|---|---|---|---|
+| > R$ 10 bi | 0,20% | R$ 969 milhões | 2,36% |
+| R$ 1–10 bi | 0,45% | R$ 85 milhões | 5,43% |
+| **R$ 100 mi–1 bi** | **1,39%** | **R$ 1,76 milhão** | **16,73%** |
+| < R$ 100 mi | 4,50% | R$ 110 mil | **54,05%** |
+
+**A leitura:** a faixa de R$100 mi a 1 bi comporta R$1,76 milhão — nenhum fundo opera com
+isso, e é por isso que ela está vazia de instituição. Mas a 12 rebalanceamentos por ano ela
+custa 16,7% ao ano só de custo. **O espaço existe, mas só a giro baixo** — e isso restringe
+quais papers da SSRN vale replicar: os de sinal persistente, não os de reversão rápida.
+**Testes:** 80 → 90.
+
 ---
 
 ## O que está aberto
