@@ -313,6 +313,31 @@ custa 16,7% ao ano só de custo. **O espaço existe, mas só a giro baixo** — 
 quais papers da SSRN vale replicar: os de sinal persistente, não os de reversão rápida.
 **Testes:** 80 → 90.
 
+### 2026-09-10 19:15 — claude — Divisão de trabalho e o alicerce de estratégias
+**Pedido:** "eu tava pensando em deixar voce com essas tarefas de base de dados e puxar e
+testar todo tipo de paper da ssrn e deixar o codex mexendo em estratégias alternativas como
+essas em small caps [...] queria que voce fizesse o alicerce, com estratégias de momentum,
+mean reversion, e uma estratégias para um cenário de armagedon, considero esse o minimo
+para um hedge fund [...] quero que registre tudo [...] para que o codex consiga ler"
+**Feito:** `EQUIPE.md` (novo, a divisão de trabalho), `estrategias/motor.py` (novo, o motor
+de backtest), `estrategias/sinais.py` (novo, as três famílias), `estrategias/MORTAS.md`
+(novo, o arquivo de ideias mortas), `tests/test_motor_backtest.py` (novo).
+**Resultado — e ele é desconfortável.** O null certo (comprar todo o universo líquido em
+peso igual e segurar) **venceu as três famílias em Sharpe**:
+
+| | retorno líquido | acima do CDI | Sharpe (vs CDI) | max DD | giro |
+|---|---|---|---|---|---|
+| **benchmark equal-weight** | **+22,4%** | **+12,5 p.p.** | **0,57** | −36,9% | 4%/mês |
+| momento 12-1 | +26,0% | +16,1 p.p. | 0,55 | −42,1% | 27%/mês |
+| reversão 1 mês | +8,3% | **−1,6 p.p.** | 0,16 | −75,7% | 81%/mês |
+| armagedom defensivo | +10,8% | +1,0 p.p. | 0,14 | **−21,6%** | 26%/mês |
+
+**Um erro meu, corrigido no meio:** chamei de "Sharpe" a razão retorno/volatilidade sem
+descontar a taxa livre de risco. Com CDI de 9,9% no período isso inverte leituras — o
+armagedom caiu de 0,43 para 0,14 quando corrigi. As duas versões ficaram no ledger.
+**Testes:** 90 → 94. O principal: um sinal que prevê perfeitamente o mês corrente não pode
+lucrar, porque o motor usa o mês seguinte — com contraprova, senão passaria por vacuidade.
+
 ---
 
 ## O que está aberto

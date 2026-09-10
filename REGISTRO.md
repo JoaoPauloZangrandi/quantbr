@@ -1342,6 +1342,77 @@ replicar: os de sinal persistente, nao os de reversao rapida.
 
 Testes: 80 -> 90.
 
+### 10/09/2026 - O alicerce: motor de backtest e as tres familias
+
+Joao definiu a divisao de trabalho (registrada em `EQUIPE.md`): Claude cuida da base, do
+alicerce de estrategias e da replicacao de papers da SSRN; Codex cuida de estrategias
+alternativas, small caps e mecanismos que instituicao grande nao cobre.
+
+E pediu o alicerce: momento, reversao e uma estrategia de armagedom -- "o minimo de um
+hedge fund".
+
+**`estrategias/motor.py` -- o motor, escrito do zero.**
+
+Nao por gosto: as decisoes que determinam o resultado sao justamente as que uma biblioteca
+esconde. Quatro regras:
+
+1. **O sinal do mes t decide a carteira que rende em t+1.** Implementado por `shift(-1)`
+   dentro do motor, uma vez, para ninguem esquecer -- defasagem feita fora e onde
+   look-ahead entra sem ser visto.
+2. **Custo cobrado sobre o GIRO, com o spread DAQUELE papel**, vindo de
+   `emissor_mensal.custo_roundtrip`. Media unica esconderia a diferenca de 0,20% a 4,50%
+   que decide se small cap vive.
+3. **Capacidade reportada em toda rodada.** Estrategia que rende 30% com capacidade de
+   R$50 mil e curiosidade, nao estrategia.
+4. **Toda rodada vai para o ledger** (`protocol/trials.duckdb`), inclusive as que
+   morreram. Sem denominador de tentativas nao ha correcao por teste multiplo.
+
+Mais `custo_que_quebra`: por quantas vezes o custo pode ser multiplicado antes de o
+retorno liquido zerar. E a pergunta do artigo que o Joao mandou guardar.
+
+**UM ERRO MEU, CORRIGIDO NO MEIO DA RODADA.** A primeira versao chamou de "Sharpe" a razao
+retorno/volatilidade, sem descontar a taxa livre de risco. No Brasil isso nao e
+preciosismo: com CDI de 9,9% ao ano no periodo, uma estrategia que rende 11% nao rendeu
+nada. O ranking mudou quando corrigi -- o armagedom caiu de 0,43 para 0,14. As duas
+versoes ficaram no ledger, que e para isso que ele serve.
+
+**O RESULTADO, E ELE E DESCONFORTAVEL.**
+
+O null certo -- comprar todo o universo liquido em peso igual e segurar -- **venceu as tres
+familias em Sharpe**:
+
+| | retorno liquido | acima do CDI | Sharpe (vs CDI) | max DD | giro |
+|---|---|---|---|---|---|
+| **benchmark equal-weight** | **+22,4%** | **+12,5 p.p.** | **0,57** | -36,9% | 4%/mes |
+| momento 12-1 | +26,0% | +16,1 p.p. | 0,55 | -42,1% | 27%/mes |
+| reversao 1 mes | +8,3% | **-1,6 p.p.** | 0,16 | -75,7% | 81%/mes |
+| armagedom defensivo | +10,8% | +1,0 p.p. | 0,14 | **-21,6%** | 26%/mes |
+
+200 meses (2010-2026), 20 papeis, liquido de custo, filtro de R$500 mil/dia de liquidez.
+
+- **Momento** rende 3,6 pontos a mais e paga com 10,5 pontos de volatilidade e 5 de
+  drawdown. Sharpe empatado, um centesimo abaixo. Nao esta morto -- o custo que quebra e
+  19,4x, entao a margem sobre execucao e larguissima --, mas a selecao nao agrega sobre
+  comprar tudo.
+- **Reversao de 1 mes esta morta**: perde do CDI depois do custo. Giro de 81% ao mes,
+  drawdown de 75,7%, custo que quebra de apenas 3,0x. E parte do "retorno" e bid-ask
+  bounce, nao retorno -- o fechamento alterna entre as pontas e isso PARECE reversao.
+- **Armagedom cumpre o contrato e so ele**: drawdown de 21,6% contra 36,9%, quinze pontos
+  a menos. E cobra por isso quase todo o premio: sobra 1 ponto acima do CDI, que dentro do
+  erro amostral e zero. Como componente serve; isolada, nao.
+
+**Nota de metodo**: sao TRES tentativas, com parametros da convencao da literatura e nao
+de busca -- entao nao ha inflacao por teste multiplo aqui. No momento em que alguem varrer
+variacoes de janela ou numero de papeis, o Sharpe para de significar o que significa agora.
+
+**`estrategias/MORTAS.md`** (novo): o arquivo de ideias mortas que a regra do projeto
+exige. Toda estrategia rodada entra ali ou no relatorio; nenhuma desaparece.
+
+**Testes: 90 -> 94.** Os quatro novos travam o motor, e o principal e severo: um sinal que
+preve perfeitamente o mes CORRENTE nao pode lucrar, porque o motor usa o mes seguinte. Com
+a contraprova: um sinal que ve o mes seguinte tem que render absurdamente -- senao o
+primeiro teste passaria por vacuidade.
+
 ---
 
 ## 3. Estado atual da base
