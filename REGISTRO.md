@@ -1034,6 +1034,70 @@ B3, Economatica, Bloomberg) ou incompleto (APIs que cobrem so empresa viva). O c
 sobra e o gabarito de evento anunciado da B3 para quem ainda esta listado, mais crosswalk
 humano para o resto -- que e o desenho que ja temos.
 
+### 10/09/2026 - Painel por emissor: a unidade em que o teste se faz
+
+Joao autorizou implementar se melhorasse o uso da base para testar estrategia. Melhora, e
+por uma razao anterior a "o paper faz assim".
+
+**O problema.** `acoes_diario` e por PAPEL, e tem que ser -- e o papel que se compra, e o
+custo, o lote e o spread sao dele. Mas teste de cross-section nao se faz por papel, e sim
+por EMPRESA. ON e PN da mesma companhia nao sao dois ativos independentes: num sort por
+tamanho ou valor, ITUB3 e ITUB4 entram como duas observacoes da MESMA firma. Isso infla o
+N efetivo, quebra a independencia que o erro-padrao de Fama-MacBeth assume, e deixa uma
+empresa ocupar duas vagas no mesmo decil.
+
+**O tamanho do problema, medido**: **30,7% dos meses-empresa da nossa base tem duas
+classes negociando**. Sem agregar, quase um terco das observacoes seria empresa duplicada.
+No Brasil isso pesa muito mais que nos EUA.
+
+**`emissor.py` -> tabela `emissor_mensal`**: 75.420 linhas empresa-mes, 572 emissores,
+01/2005 a 09/2026. Uma linha por (CNPJ, mes), com o retorno composto a partir da primitiva
+diaria, valor de mercado da empresa, liquidez, regime, motivo de saida e as duas
+convencoes de retorno de delisting.
+
+**ONDE DISCORDAMOS DO PAPER DA RBFin, DE PROPOSITO.** Ele escolhe a classe mais liquida DO
+MES e usa o retorno DAQUELE MES. E look-ahead, e do tipo pior: a escolha correlaciona com
+o resultado, porque a classe que teve a noticia foi a que negociou mais naquele mes. Aqui
+a classe sai da liquidez dos **12 meses anteriores**.
+
+**A janela de 12 meses nao veio da teoria, veio de medir.** Com janela de um mes:
+
+| empresa | trocava de classe em |
+|---|---|
+| IGUACU CAFE | 50,9% dos meses |
+| ALFA HOLDING | 49,8% |
+| TELEMIG CL | 42,9% |
+
+As duas classes mal negociam, entao "a mais liquida" alterna por acaso e produz um giro
+que nenhuma carteira real suportaria. Com 12 meses o giro cai de **4,11% para 1,75%** dos
+meses-empresa, e a ITAUSA -- que oscilava entre ITSA3 e ITSA4 -- fica em ITSA4 nos 261
+meses. Janela longa e sticky por construcao, sem precisar de regra de buffer.
+
+**O que sobra de troca esta inteiro em microcap, verificado e nao suposto:**
+
+| faixa de troca | empresas | volume mensal mediano |
+|---|---|---|
+| menos de 5% dos meses | 491 | **R$ 54,6 milhoes** |
+| 5% a 20% | 34 | R$ 48,7 mil |
+| 20% ou mais | 11 | **R$ 11,6 mil** |
+
+Quatro mil vezes menos liquido. Qualquer filtro de negociabilidade tira esses papeis, e a
+coluna `trocou_de_classe` deixa o custo a vista para quem nao filtrar.
+
+**Conferencia da escolha nos papeis conhecidos**: BBDC4, PETR4, ITUB4, GGBR4, KLBN4 e
+ITSA4 -- todos a classe mais liquida. ELET6 dando lugar a ELET3 ao longo do tempo, e VALE5
+em 2005-2009, que era mesmo a mais liquida na epoca.
+
+**O modulo NAO filtra.** O paper exige minimo de 10 pregoes no mes e 12 meses de
+historico; aqui isso vira COLUNA (`pregoes_no_mes`) e o filtro fica com quem roda o teste
+-- regra 6 do projeto. Filtro embutido em base e filtro que ninguem ve.
+
+**Ligado na rotina diaria**: `atualizar.py` reconstroi `emissor_mensal` junto do painel
+diario. Se um nao acompanhar o outro, um teste rodado amanha usa universo de ontem sem
+ninguem perceber.
+
+Testes: 68 -> 71.
+
 ---
 
 ## 3. Estado atual da base

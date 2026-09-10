@@ -186,6 +186,24 @@ viraram código.
 emissão — então não ganham a folga e continuam fora. Virou teste.
 **Testes:** 62 → 68.
 
+### 2026-09-10 09:40 — claude — Painel por emissor
+**Pedido:** "implemente se achar que fica melhor para usarmos essas bases para fazermos
+testes de estratégias quantitativas depois"
+**Feito:** `emissor.py` → tabela `emissor_mensal` (75.420 linhas empresa-mês, 572
+emissores, 2005-01 a 2026-09), ligada à rotina diária.
+**Arquivos:** `emissor.py` (novo), `atualizar.py`, `tests/test_emissor_mensal.py` (novo),
+`REGISTRO.md`.
+**Resultado:** **30,7% dos meses-empresa têm duas classes negociando** — sem agregar por
+emissor, quase um terço das observações de um teste cross-section seria a mesma firma
+contada duas vezes.
+**Onde discordei do paper:** ele escolhe a classe mais líquida *do mês* e usa o retorno
+*daquele mês* — look-ahead correlacionado com o resultado. Aqui a escolha vem dos 12 meses
+anteriores. A janela longa também resolveu um problema medido: com janela de um mês,
+empresa ilíquida trocava de classe em metade dos meses (IGUAÇU CAFÉ 50,9%). Giro caiu de
+**4,11% para 1,75%**, e o que sobra está inteiro em microcap de R$ 11,6 mil de volume
+mensal — contra R$ 54,6 milhões nas que não trocam.
+**Testes:** 68 → 71.
+
 ---
 
 ## O que está aberto

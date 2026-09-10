@@ -45,6 +45,7 @@ import pandas as pd
 import requests
 
 import config
+import emissor
 import painel
 import warehouse
 from ingest import cotahist
@@ -151,6 +152,9 @@ def rotina_diaria(dias_forcados: int | None = None) -> int:
     n = aplicar(quadros)
     if n:
         linhas_painel = painel.construir()
+        # O painel por emissor deriva do diario: se um nao acompanha o outro, um teste
+        # rodado amanha usa universo de ontem sem ninguem perceber.
+        emissor.construir()
         _registrar(f"{n:,} linhas novas; painel reconstruido com {linhas_painel:,} linhas")
     else:
         _registrar("nenhum pregao novo")
@@ -185,6 +189,7 @@ def reconciliar() -> None:
                    f"depois linhas={depois[0]:,} soma={depois[1]:,}")
         _registrar("  o arquivo anual venceu (a B3 e a fonte). Vale investigar o que mudou.")
     painel.construir()
+    emissor.construir()
 
 
 DIAS_ENTRE_ATUALIZACOES_DE_PAPERS = 7
