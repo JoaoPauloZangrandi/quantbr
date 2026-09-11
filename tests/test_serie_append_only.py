@@ -61,7 +61,12 @@ def _monta(con, fatores_por_data: dict[str, float]) -> None:
     con.execute("""
         CREATE OR REPLACE TABLE acoes_diario AS
         SELECT *, fechamento / fator_acum AS fechamento_ajustado,
-                  fechamento / fator_acum AS fechamento_retorno_total
+                  fechamento / fator_acum AS fechamento_retorno_total,
+                  -- `mid` entra porque SQL_RETORNOS tambem calcula o retorno sobre o
+                  -- ponto medio. Aqui o spread e zero de proposito: este teste e sobre a
+                  -- propriedade append-only, nao sobre microestrutura, e um spread fake
+                  -- so adicionaria ruido a uma pergunta que nao e essa.
+                  fechamento AS mid
         FROM acoes_diario
     """)
 

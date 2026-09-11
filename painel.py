@@ -114,7 +114,21 @@ SQL_RETORNOS = """
       - 1 AS retorno_qtd,
     fechamento_retorno_total
       / lag(fechamento_retorno_total) OVER (PARTITION BY ticker ORDER BY data)
-      - 1 AS retorno_total
+      - 1 AS retorno_total,
+    -- RETORNO SOBRE O PONTO MEDIO, e ele existe para responder a uma suspeita concreta.
+    --
+    -- O preco de FECHAMENTO e o do ultimo negocio, e o ultimo negocio ocorre ora na ponta
+    -- de compra, ora na de venda, por acaso. Isso cria uma oscilacao artificial de ida e
+    -- volta -- o bid-ask bounce -- que PARECE reversao de curto prazo e nao pode ser
+    -- capturada por ninguem, porque e artefato de onde o negocio calhou de fechar.
+    --
+    -- O ponto medio entre a melhor compra e a melhor venda nao pula: e a mesma referencia
+    -- todo dia. Comparar a reversao medida nos dois preços separa o efeito economico do
+    -- artefato de microestrutura. Em papel de spread largo -- a cauda onde o spread
+    -- mediano passa de 3% -- e onde a diferenca tem que aparecer.
+    (mid / fator_acum)
+      / nullif(lag(mid / fator_acum) OVER (PARTITION BY ticker ORDER BY data), 0)
+      - 1 AS retorno_mid
 """
 
 SQL_CLASSE = """
@@ -394,6 +408,12 @@ def construir(ano_inicio: int = 2005) -> int:
                 CASE WHEN melhor_compra > 0 AND melhor_venda > melhor_compra
                      THEN (melhor_venda - melhor_compra)
                           / ((melhor_venda + melhor_compra) / 2) END AS spread_relativo,
+                -- Ponto medio entre as duas pontas, em preco por acao. NULO quando
+                -- qualquer uma das pontas nao existe: papel sem oferta registrada vem com
+                -- os dois campos ZERADOS, e dividir por esse zero produzia retorno de
+                -- 10.000% -- 5.633 linhas assim, achadas antes de a coluna ser usada.
+                CASE WHEN melhor_compra > 0 AND melhor_venda > melhor_compra
+                     THEN ((melhor_compra + melhor_venda) / 2) / fator_cotacao END AS mid,
                 volume,                   -- financeiro, em reais (nao depende da unidade)
                 quantidade,               -- acoes negociadas
                 negocios

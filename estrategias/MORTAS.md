@@ -109,6 +109,93 @@ opção está fora do escopo e aluguel por papel exige o arquivo BTB da B3.
 
 ---
 
+---
+
+## 4. Aprofundamento das três famílias — 11/09/2026
+
+O João avisou para não tratar um ponto testado como se fosse uma família. Estava certo:
+cada uma das três tinha um mundo dentro, e o aprofundamento mudou três leituras.
+
+### 4.1. Momento não é robusto — é sorteio
+
+24 variações (formação 3/6/9/12 meses × pulo 0/1 × 10/20/40 papéis):
+
+| | Sharpe |
+|---|---|
+| mínimo | 0,37 |
+| mediana | **0,547** |
+| máximo | 0,64 |
+| **benchmark** | **0,57** |
+
+**Só 11 de 24 batem o benchmark, e a mediana perde dele.** O ponto que eu tinha escolhido
+seguindo a literatura (12-1, 20 papéis) fica em 0,55 — abaixo da mediana das variações.
+Escolher o melhor de 24 e chamar de resultado seria construir o número, não medi-lo.
+
+### 4.2. O momento quebra, e dá para dizer quando
+
+Os 8 piores meses do momento contra o mercado são **todos** meses de alta violenta
+(set/2015: mercado +34,6%, momento −1,0%). É a assinatura do *momentum crash*: depois de
+um bear market os perdedores disparam e a carteira de vencedores fica para trás.
+
+O sinal **inverte** conforme o regime anterior:
+
+| 12 meses anteriores | excesso do momento sobre o mercado |
+|---|---|
+| mercado subindo (168 meses) | **+0,72%/mês** |
+| mercado caindo (32 meses) | **−0,74%/mês** |
+
+**Escala de volatilidade** (o remédio clássico) reduz risco mas não melhora retorno
+ajustado: DD de −42,1% para −32,2%, Sharpe de 0,55 para 0,53. Troca retorno por segurança
+quase um-por-um.
+
+**Overlay de tendência** (ficar em caixa quando o mercado acumula 12 meses negativos, 10%
+dos meses) melhora o momento — Sharpe 0,55 → **0,60** — e não faz nada pelo benchmark.
+Coerente com o mecanismo. **Mas é candidato, não achado**: 0,60 contra 0,58 em 200 meses
+está dentro do ruído, e já são 34 tentativas no ledger.
+
+### 4.3. Reversão: existe, e não é capturável
+
+A suspeita registrada era que a reversão de curto prazo fosse *bid-ask bounce*. Testei
+comparando a autocorrelação mensal medida no fechamento e no **ponto médio** entre as
+pontas — algo que só dá para fazer porque a base tem as duas:
+
+| faixa de spread | autocorr. no fechamento | no ponto médio |
+|---|---|---|
+| < 0,5% | +0,077 | +0,078 |
+| 0,5–2% | +0,007 | +0,008 |
+| **> 2%** | **+0,000** | **−0,074** |
+
+**O contrário do que eu suspeitava.** Em papel líquido os dois concordam. Em papel de
+spread largo o fechamento não mostra reversão e o ponto médio mostra −0,074: o fechamento
+defasado — último negócio, às vezes de dias atrás — estava *mascarando* reversão real, não
+inventando reversão falsa.
+
+E ela continua não sendo capturável. Sinal no ponto médio, P&L no preço real:
+
+| sinal | acima do CDI | Sharpe | max DD |
+|---|---|---|---|
+| fechamento | −0,7 p.p. | 0,18 | −75,7% |
+| ponto médio | **+0,1 p.p.** | 0,20 | −77,7% |
+
+A mesma iliquidez que cria a reversão impede colhê-la — o round trip nessa faixa custa
+4,5%. É limite de arbitragem, agora medido na nossa base em vez de citado.
+
+### 4.4. Armagedom: faltava a metade que importa
+
+O que eu tinha testado era seleção defensiva — *quais* ações carregar. Faltava a decisão
+de *se* carregar ação, que é o que salva numa ruptura: com a correlação indo a um, escolher
+melhor dentro da bolsa não protege ninguém.
+
+O overlay de tendência (seção 4.2) é essa metade. Sozinho ele quase não muda o benchmark
+(Sharpe 0,58 → 0,57) porque só fica fora em 10% dos meses — mas é o mecanismo certo, e
+combinado com momento é onde apareceu o único número acima da barra.
+
+**Continua valendo o limite estrutural:** sem opção e sem venda a descoberto não existe
+proteção de cauda de verdade. Aluguel por papel exige o arquivo BTB da B3, que a base ainda
+não tem.
+
+---
+
 ## Nota de método sobre estes três resultados
 
 São **três tentativas**, com parâmetros escolhidos pela convenção da literatura e não por

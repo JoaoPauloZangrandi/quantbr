@@ -114,6 +114,11 @@ por_ticker AS (
                                                      AS retorno_qtd,
            exp(sum(ln(1 + retorno_total)) FILTER (WHERE retorno_total > -1)) - 1
                                                      AS retorno_total,
+           -- Retorno medido no PONTO MEDIO entre as pontas. Serve de SINAL, nunca de
+           -- P&L: ninguem negocia no meio do spread. A diferenca para o fechamento
+           -- separa movimento economico de artefato de microestrutura.
+           exp(sum(ln(1 + retorno_mid)) FILTER (WHERE retorno_mid > -1 AND retorno_mid < 1)) - 1
+                                                     AS retorno_mid,
            bool_or(tem_evento)                       AS teve_evento,
            bool_or(tem_provento)                     AS teve_provento
     FROM diario
@@ -152,7 +157,7 @@ base AS (
            preco_fim, volume_mes, volume_mediano, valor_mercado_empresa,
            retorno_qtd, retorno_total, teve_evento, teve_provento,
            motivo_saida, retorno_delisting, retorno_delisting_conservador,
-           spread_mediano, amihud,
+           spread_mediano, amihud, retorno_mid,
            ticker <> lag(ticker) OVER (PARTITION BY cnpj ORDER BY ano_mes)
              AS trocou_de_classe,
            (date_trunc('month', strptime(ano_mes, '%Y-%m'))

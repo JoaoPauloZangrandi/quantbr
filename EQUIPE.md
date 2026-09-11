@@ -93,6 +93,27 @@ Estão em `DIARIO.md`, e a primeira é a que pode corromper trabalho: **o DuckDB
 escritor por vez.** Antes de rodar qualquer coisa que escreva no warehouse, registre no
 diário. A tarefa agendada do Windows também escreve, às 20h, e não lê o diário.
 
+### A regra de registro, que vale igual para os dois
+
+Pedido do João em 11/09/2026, literal: **tudo que ele falar, tudo que o agente fizer e
+tudo que o agente entender tem que ser registrado**, para que ele e o outro agente saibam
+o que está acontecendo.
+
+Isso é mais forte do que "documente o código". Significa três coisas:
+
+1. **O pedido, nas palavras dele.** Não a sua interpretação do pedido — a frase. A
+   interpretação vem depois, separada, para que dê para ver se você entendeu errado.
+2. **O que você entendeu e decidiu.** Inclusive o que você decidiu NÃO fazer, e por quê.
+   Uma decisão não registrada some, e a próxima pessoa a olhar o código vai refazer a
+   discussão do zero.
+3. **O que você mediu.** Número, não adjetivo. "Melhorou" não é registro; "Sharpe de 0,55
+   para 0,60 em 200 meses, com 34 tentativas no ledger" é.
+
+E o que deu errado entra com o mesmo peso do que deu certo — inclusive erro do próprio
+agente. Este repositório já tem registrados: um Sharpe calculado sem descontar o CDI, uma
+coleta de 30 minutos perdida por erro de schema, e um backoff de lock que nunca disparava
+porque a mensagem de erro estava em português. Os três viraram teste.
+
 ### Onde cada coisa é registrada
 
 | arquivo | o quê |

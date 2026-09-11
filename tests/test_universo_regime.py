@@ -73,3 +73,34 @@ def test_sql_gerado_bate_com_o_mapa():
         assert f"THEN '{regime}'" in SQL_REGIME
     assert SQL_BDI.startswith("(") and SQL_BDI.endswith(")")
     assert SQL_REGIME.strip().endswith("ELSE 'outro' END")
+
+
+# ---------------------------------------------------------------------------
+# 11/09/2026: o backoff de lock nao reconhecia a mensagem em portugues.
+# ---------------------------------------------------------------------------
+
+from warehouse import _e_lock
+
+
+@pytest.mark.parametrize("mensagem", [
+    'IO Error: Could not set lock on file "quantbr.duckdb"',
+    'IO Error: Cannot open file: O arquivo ja esta sendo usado por outro processo.',
+    'IO Error: Cannot open file: The file is being used by another process',
+    'File is already open in python.exe (PID 18944)',
+    'Conflicting lock is held in another process',
+])
+def test_reconhece_lock_em_qualquer_idioma(mensagem):
+    """Bug real, e ele so apareceu no primeiro dia com dois agentes escrevendo.
+
+    A checagem era `"lock" not in str(exc)`. Num Windows em portugues o DuckDB responde
+    "O arquivo ja esta sendo usado por outro processo" -- sem a palavra "lock". O backoff
+    nunca disparava e o processo morria na hora, em vez de esperar, que e exatamente o que
+    a funcao existe para fazer.
+    """
+    assert _e_lock(Exception(mensagem)), f"deveria reconhecer como lock: {mensagem}"
+
+
+def test_nao_confunde_outro_erro_de_io_com_lock():
+    """Esperar 3 minutos por um disco cheio seria pior que falhar na hora."""
+    assert not _e_lock(Exception("IO Error: No space left on device"))
+    assert not _e_lock(Exception("IO Error: file not found"))

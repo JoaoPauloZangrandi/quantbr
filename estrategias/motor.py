@@ -272,6 +272,32 @@ def _gravar_trial(resultado: dict, serie: pd.DataFrame) -> None:
         con.close()
 
 
+def escalar_por_vol(retornos: pd.Series, rf: pd.Series, *,
+                    vol_alvo: float = 0.20, janela: int = 6,
+                    teto: float = 1.5) -> pd.Series:
+    """Sobrepoe controle de volatilidade: expor menos quando a estrategia esta agitada.
+
+    POR QUE ISTO EXISTE. O momento tem uma patologia documentada e que a nossa base
+    confirma: ele quebra depois de mercado em queda. Medido aqui, o excesso sobre o
+    mercado e +0,72% ao mes quando os 12 meses anteriores foram de alta e **-0,74% ao mes**
+    quando foram de queda -- o sinal INVERTE. E os oito piores meses do momento contra o
+    mercado sao todos meses de alta violenta (setembro de 2015: mercado +34,6%, momento
+    -1,0%), que e a assinatura do momentum crash de Daniel e Moskowitz: depois do bear
+    market os perdedores disparam, e a carteira de vencedores fica para tras.
+
+    A correcao conhecida nao e mudar o sinal, e mudar o TAMANHO da posicao: quando a
+    volatilidade recente sobe, expor menos. O que sobra fica no CDI.
+
+    Point-in-time: a volatilidade usada e a dos meses ANTERIORES, com `shift(1)`. Usar a
+    do proprio mes seria escalar a posicao sabendo o quanto ela ia balancar.
+    """
+    vol = retornos.rolling(janela, min_periods=janela).std() * np.sqrt(MESES_NO_ANO)
+    peso = (vol_alvo / vol.shift(1)).clip(upper=teto)
+    peso = peso.fillna(1.0)
+    rf_alinhado = rf.reindex(retornos.index).fillna(0.0)
+    return peso * retornos + (1 - peso) * rf_alinhado
+
+
 def benchmark(par: Parametros | None = None) -> dict:
     """O null certo: comprar TODO o universo elegivel, em peso igual, e segurar.
 

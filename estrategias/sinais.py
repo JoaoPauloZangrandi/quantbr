@@ -124,3 +124,24 @@ def defensivo_armagedom(janela: int = 12) -> pd.DataFrame:
     # Menor beta de queda e melhor; volatilidade entra como desempate suave.
     d["sinal"] = -(d["beta_queda"].rank(pct=True) + 0.5 * d["vol"].rank(pct=True))
     return d[["cnpj", "ano_mes", "sinal"]]
+
+
+def tendencia_do_mercado(janela: int = 12) -> pd.Series:
+    """Serie mensal 0/1: o mercado esta em tendencia de alta?
+
+    E o outro lado do armagedom, e o que faltava. A selecao defensiva escolhe QUAIS acoes
+    carregar; isto decide SE carregar acao. Numa ruptura de verdade a correlacao vai a um
+    e escolher melhor dentro da bolsa nao salva ninguem -- o que salva e nao estar nela.
+
+    Regra: se o retorno acumulado do mercado nos ultimos `janela` meses for negativo, o
+    mes seguinte fica em caixa. E a versao mais simples do trend-following de serie
+    temporal, e a simplicidade e proposital: cada parametro a mais e uma variacao a mais
+    para o teste multiplo cobrar depois.
+
+    Point-in-time por construcao -- a janela termina no mes anterior ao da decisao.
+    """
+    d = _painel()
+    mercado = d.groupby("ano_mes")["retorno_total"].mean().sort_index()
+    acum = np.log1p(mercado.clip(lower=-0.99)).rolling(janela, min_periods=janela).sum()
+    # `shift(1)`: a decisao de estar dentro ou fora usa dado ate o mes ANTERIOR.
+    return (acum.shift(1) > 0).astype(float)

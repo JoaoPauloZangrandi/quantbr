@@ -17,6 +17,27 @@ import pandas as pd
 import config
 
 
+# Como reconhecer "o arquivo esta travado" em mais de um idioma.
+#
+# BUG REAL, pago em 11/09/2026: a checagem era `"lock" not in str(exc)`, e num Windows em
+# portugues o DuckDB devolve "O arquivo ja esta sendo usado por outro processo". A palavra
+# "lock" nao aparece, entao o backoff NUNCA disparava e o processo morria na hora -- em vez
+# de esperar, que era exatamente o que esta funcao existia para fazer. Ficou invisivel
+# enquanto so havia um agente escrevendo; apareceu no primeiro dia com dois.
+SINAIS_DE_LOCK = (
+    "lock",
+    "already open",
+    "being used by another process",
+    "sendo usado por outro processo",
+    "conflicting lock",
+)
+
+
+def _e_lock(exc: Exception) -> bool:
+    texto = str(exc).lower()
+    return any(sinal in texto for sinal in SINAIS_DE_LOCK)
+
+
 @contextmanager
 def connect(read_only: bool = False, *, tentativas: int = 6, espera: float = 5.0):
     """Abre conexao com o warehouse, esperando o lock se outro processo estiver escrevendo.
@@ -32,7 +53,7 @@ def connect(read_only: bool = False, *, tentativas: int = 6, espera: float = 5.0
             con = duckdb.connect(str(config.DB_PATH), read_only=read_only)
             break
         except duckdb.IOException as exc:
-            if "lock" not in str(exc).lower():
+            if not _e_lock(exc):
                 raise
             ultimo_erro = exc
             time.sleep(espera * (tentativa + 1))

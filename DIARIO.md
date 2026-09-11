@@ -338,6 +338,40 @@ armagedom caiu de 0,43 para 0,14 quando corrigi. As duas versões ficaram no led
 **Testes:** 90 → 94. O principal: um sinal que prevê perfeitamente o mês corrente não pode
 lucrar, porque o motor usa o mês seguinte — com contraprova, senão passaria por vacuidade.
 
+### 2026-09-11 07:40 — claude — Aprofundamento das três famílias
+**Pedido:** "pode começar a puxar e testar os papers da ssrn. mas não assuma que a base
+está perfeita e nem que as estratégias de momentum, mean revert e armagedom estão completo.
+cada uma dessas coisas possui um mundo dentro, eu prefiro que voce se aprofunde nelas antes
+de ir para os papers da ssrn"
+**O que entendi:** eu tinha testado **um ponto** de cada família e tratado como se fosse a
+família inteira. Antes de qualquer paper da SSRN, ir fundo nas três — e continuar duvidando
+da base.
+**Feito:** grade de robustez do momento, análise de momentum crash, escala de volatilidade,
+overlay de tendência, retorno sobre ponto médio na base, reteste da reversão.
+**Arquivos:** `painel.py`, `emissor.py`, `estrategias/motor.py`, `estrategias/sinais.py`,
+`estrategias/MORTAS.md`, `warehouse.py`, `tests/` (3 arquivos).
+**Resultados, todos em `estrategias/MORTAS.md` seção 4:**
+- **Momento não é robusto.** 24 variações: Sharpe de 0,37 a 0,64, **mediana 0,547 — abaixo
+  do benchmark (0,57)**. Só 11 de 24 batem a barra. O ponto que eu tinha escolhido está
+  abaixo da mediana.
+- **O momento quebra em regime identificável:** excesso de **+0,72%/mês** depois de 12
+  meses de alta e **−0,74%/mês** depois de 12 meses de queda. Os 8 piores meses dele são
+  todos de alta violenta do mercado.
+- **Escala de volatilidade** troca retorno por segurança um-por-um (DD −42,1% → −32,2%,
+  Sharpe 0,55 → 0,53). **Overlay de tendência** leva o momento a Sharpe 0,60 — candidato,
+  não achado: 34 tentativas já no ledger.
+- **Reversão: o contrário do que eu suspeitava.** Em papel de spread > 2%, o fechamento
+  mostra autocorrelação zero e o **ponto médio mostra −0,074** — o fechamento defasado
+  estava mascarando reversão real. Mas ela não é capturável: +0,1 p.p. acima do CDI com
+  drawdown de 78%. A iliquidez que a cria impede colhê-la.
+- **Armagedom: faltava a metade que importa** — decidir *se* ficar em ação, não só *quais*.
+**Dois bugs achados no caminho:** o ponto médio explodia quando as duas pontas vinham
+zeradas (5.757 linhas acima de 1.000%, corrigido na raiz); e o backoff de lock do
+`warehouse.connect` **nunca disparava em Windows português**, porque procurava a palavra
+"lock" numa mensagem que diz "já está sendo usado por outro processo". Esse só apareceu no
+primeiro dia com dois agentes escrevendo.
+**Testes:** 94 → 100.
+
 ---
 
 ## O que está aberto
