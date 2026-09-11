@@ -80,6 +80,42 @@ def _painel(par: Parametros) -> pd.DataFrame:
         """).df()
 
 
+def _mes_seguinte(ano_mes) -> pd.Index:
+    """'2020-01' -> '2020-02'. Mes de CALENDARIO, nao proximo registro do painel."""
+    idx = pd.Index(ano_mes)
+    if len(idx) == 0:
+        return idx
+    return pd.Index((pd.PeriodIndex(idx, freq="M") + 1).strftime("%Y-%m"))
+
+
+def _casar_retorno_futuro(alvo: pd.DataFrame, painel: pd.DataFrame) -> pd.DataFrame:
+    """Cola em cada linha o retorno do MES DE CALENDARIO seguinte, e o rotula.
+
+    Nao usa `shift(-1)`. O shift anda para o proximo REGISTRO, e registro nao e mes: se o
+    papel some do painel em fevereiro -- porque nao negociou, porque caiu do filtro de
+    liquidez, ou porque o sinal nao existe naquele mes -- o shift entrega marco e chama de
+    "mes seguinte". O sinal de janeiro passa a ser julgado por um retorno que ele nao tinha
+    como prever, e dois meses de mercado entram no lugar de um.
+
+    Achado pelo Codex em 11/09/2026 com painel sintetico: 2% viravam 30% ao remover um
+    unico mes do meio. A fonte do retorno e o painel INTEIRO, nao o painel ja cruzado com
+    o sinal -- senao a propria ausencia de sinal abre a lacuna.
+
+    Quem nao tem mes seguinte no painel fica com o retorno de delisting, se houver, e sai
+    da carteira se nao houver. Sair e a resposta honesta: o motor nao sabe o que aconteceu
+    com o papel naquele mes, e inventar o mes seguinte disponivel foi exatamente o bug.
+    """
+    d = alvo.copy()
+    d["mes_realizacao"] = _mes_seguinte(d["ano_mes"])
+    fonte = (painel[["cnpj", "ano_mes", "retorno"]]
+             .rename(columns={"ano_mes": "mes_realizacao", "retorno": "retorno_futuro"}))
+    d = d.merge(fonte, on=["cnpj", "mes_realizacao"], how="left")
+    # Papel que sai da base leva o retorno de delisting, em vez de sumir.
+    saiu = d["retorno_futuro"].isna() & d["retorno_delisting"].notna()
+    d.loc[saiu, "retorno_futuro"] = d.loc[saiu, "retorno_delisting"]
+    return d.dropna(subset=["retorno_futuro"])
+
+
 def _risk_free_mensal() -> pd.Series:
     """CDI acumulado por mes. Sem isto nao existe Sharpe, so razao retorno/vol.
 
@@ -149,13 +185,10 @@ def rodar(sinal: pd.DataFrame, par: Parametros | None = None, *,
     if d.empty:
         return {"erro": "sinal nao casou com o painel"}
 
-    # O retorno do mes SEGUINTE. Feito aqui, uma vez, para ninguem esquecer.
-    d = d.sort_values(["cnpj", "ano_mes"])
-    d["retorno_futuro"] = d.groupby("cnpj")["retorno"].shift(-1)
-    # Papel que sai da base leva o retorno de delisting no ultimo mes, em vez de sumir.
-    ultimo = d["retorno_futuro"].isna() & d["retorno_delisting"].notna()
-    d.loc[ultimo, "retorno_futuro"] = d.loc[ultimo, "retorno_delisting"]
-    d = d.dropna(subset=["retorno_futuro"])
+    # O retorno do mes SEGUINTE de calendario, casado contra o painel inteiro.
+    d = _casar_retorno_futuro(d.sort_values(["cnpj", "ano_mes"]), px)
+    if d.empty:
+        return {"erro": "nenhum sinal teve mes seguinte no painel"}
 
     linhas, carteira_anterior = [], set()
     for mes, g in d.groupby("ano_mes", sort=True):
@@ -178,7 +211,11 @@ def rodar(sinal: pd.DataFrame, par: Parametros | None = None, *,
         carteira_anterior = atual
 
         linhas.append({
-            "ano_mes": mes,
+            # O indice e o mes em que o retorno ACONTECEU, nao o da formacao. O CDI e
+            # comparado nesse mes; rotular pela formacao descontava CDI de janeiro de um
+            # retorno de fevereiro (achado B do Codex, 11/09/2026).
+            "ano_mes": topo["mes_realizacao"].iloc[0],
+            "mes_formacao": mes,
             "retorno_bruto": bruto,
             "custo": custo,
             "retorno_liquido": bruto - custo,
@@ -313,11 +350,7 @@ def benchmark(par: Parametros | None = None) -> dict:
     px = _painel(par)
     if px.empty:
         return {"erro": "painel vazio"}
-    d = px.sort_values(["cnpj", "ano_mes"]).copy()
-    d["retorno_futuro"] = d.groupby("cnpj")["retorno"].shift(-1)
-    ultimo = d["retorno_futuro"].isna() & d["retorno_delisting"].notna()
-    d.loc[ultimo, "retorno_futuro"] = d.loc[ultimo, "retorno_delisting"]
-    d = d.dropna(subset=["retorno_futuro"])
+    d = _casar_retorno_futuro(px.sort_values(["cnpj", "ano_mes"]), px)
 
     linhas, anterior = [], set()
     for mes, g in d.groupby("ano_mes", sort=True):
@@ -325,7 +358,8 @@ def benchmark(par: Parametros | None = None) -> dict:
         giro = len(atual - anterior) / max(len(atual), 1) if anterior else 1.0
         custo = giro * float(g["custo_roundtrip"].median())
         anterior = atual
-        linhas.append({"ano_mes": mes, "retorno_bruto": float(g["retorno_futuro"].mean()),
+        linhas.append({"ano_mes": g["mes_realizacao"].iloc[0], "mes_formacao": mes,
+                       "retorno_bruto": float(g["retorno_futuro"].mean()),
                        "custo": custo, "retorno_liquido": float(g["retorno_futuro"].mean()) - custo,
                        "giro": giro, "capacidade": float(g["capacidade_dia"].sum()) * 5,
                        "n": len(g)})

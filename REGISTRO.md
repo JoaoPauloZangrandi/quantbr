@@ -1524,8 +1524,83 @@ errado.
 | 20 | **Ajuste com fator quase certo é pior que ajuste nenhum**, porque não deixa rastro: o desdobramento 8:1 da MGLU3 era ajustado por 15/2 = 7,5 e sobrava 6,7% de retorno falso — pequeno demais para aparecer em qualquer varredura por salto |
 | 21 | **`PRECO_MINIMO_CONFIAVEL = R$1` exclui justamente quem faz grupamento.** Empresa que agrupa está barata, e é por isso que agrupa. IRBR3 (R$0,93 → R$22,06) e BHIA3 (R$0,50 → R$11,17) caem no balde `preco_de_centavos` e ficam fora do ajuste. 2.057 candidatos ali |
 | 22 | **`master/precos.py` está morto** e ninguém notou: lê `eventos_detectados` e `b3_eventos_caixa`, que a limpeza de 02/09 apagou. Quem constrói as séries é `painel.py` |
+| 23 | **`shift(-1)` anda para o próximo REGISTRO, não para o próximo mês.** No motor de backtest, papel que sumia do painel por um mês — não negociou, ou caiu do filtro de liquidez — fazia o sinal de janeiro ser julgado pelo retorno de março. 793 de 32.705 linhas (2,4%), com saltos de 2 a 10+ meses. Achado pelo Codex em painel sintético (2% viravam 30%); corrigido em 11/09/2026 casando por mês de calendário contra o painel inteiro |
+| 24 | **A série saía rotulada pelo mês de formação carregando o retorno do mês seguinte**, e `_metricas` faz `rf.reindex(r.index)`: CDI de janeiro descontado de retorno de fevereiro, em todo Sharpe já publicado. Mesmo achado que o 23, visto do outro lado — enquanto o retorno vem de um mês indeterminado, não existe rótulo certo |
 
-Os que têm regra fixa viraram teste em `tests/test_deteccao_eventos.py`.
+Os que têm regra fixa viraram teste em `tests/test_deteccao_eventos.py`; 23 e 24 em
+`tests/test_motor_calendario.py`.
+
+### O preço do item 21, medido em 11/09/2026
+
+O item 21 era uma falha de cobertura do ajuste. Só em 11/09/2026, ao corrigir os bugs 23 e
+24, ficou visível **quanto** ela custava: os grupamentos não ajustados entram no painel
+mensal como retorno de quatro dígitos — PDGR3 **+4170% em março/2023** (R$ 0,09 → R$ 7,20 em
+06/03, `tem_evento = False`), IRBR3 +2938%, BHIA3 +2007%.
+
+Em 31.915 retornos mensais do benchmark equal-weight:
+
+| | CAGR |
+|---|---|
+| como está | 15,79% |
+| sem os 12 retornos acima de +500% | 9,11% |
+| sem os 43 retornos acima de +100% | 6,89% |
+
+**43 linhas em 31.915 carregavam o excesso sobre o CDI inteiro.** Tirando 12 delas o
+benchmark cai abaixo do CDI (9,8%). A barra de Sharpe 0,57 publicada em 10/09/2026 está
+morta, e a de 0,33 que saiu da correção de calendário **também está contaminada** — não há,
+hoje, número de referência confiável. Os resultados das três famílias e as 24 variações do
+aprofundamento de 11/09 usaram o mesmo painel e a mesma barra, e estão todos sob suspeita.
+
+### O item 21 resolvido, em 11/09/2026 — e eram três bugs, não um
+
+| # | Achado |
+|---|---|
+| 25 | **O veto de papel de centavos não distinguia direção.** O tick de R$0,01 fabrica razão redonda pequena por acidente; não fabrica 1:80. E o falso positivo que o detector teme — crash lido como evento — é sempre QUEDA. Na direção grupamento ele não existe. Corte medido: entre 581 candidatos com fator ≥ 3 nessa direção, o maior longe de inteiro é **4,50x** (NORD3, 11/01/2021); acima de 5x não há um só caso em 21 anos. 127 eventos entraram, todos alta de preço, mínimo 5,00x; nenhum saiu |
+| 26 | **O dia do evento também tem mercado**, e isso reprovava o evento por décimos. Grupamento 10:1 num dia de −4,8% devolve razão 0,105 contra tolerância de 5%: IGBR3, GFSA3, OGSA3. Baixar o corte apanharia a NORD3, que é squeeze REAL. A separação veio do volume, que não vem do preço: depois de um grupamento a quantidade cai junto com o fator e o financeiro fica parecido; a NORD3 tem razão de quantidade **236x** e financeira **1.055x** |
+| 27 | **Provento no mesmo pregão do evento**, e a razão de preço mede os dois somados. BRPR3 em 31/08/2023 restituiu R$63,05/ação (preço na data com R$76,44) E agrupou no mesmo dia: razão observada 4,71 casava com 5:1, quando a conta certa é (76,44 × 0,1752)/360 = **27:1** — e a contagem de ações da CVM dizia 26:1 desde sempre. 143 dos 2.723 eventos aceitos têm provento no mesmo pregão. Corrigido neutralizando o provento antes de casar o fator, reusando `painel._fatores_de_provento` para não criar uma segunda convenção de data-ex |
+
+Os três só ficaram visíveis em sequência: cada correção destapava a seguinte.
+
+**Verificação direta:**
+
+| papel | dia | retorno mensal antes | retorno do dia depois |
+|---|---|---|---|
+| PDGR3 | 06/03/2023 | +4.170% | **0,0%** |
+| IRBR3 | 25/01/2023 | +2.938% | −1,2% |
+| BRPR3 | 31/08/2023 | +2.391% | −0,4% |
+| BHIA3 | 15/12/2023 | +2.007% | +1,5% |
+| IGBR3 | 22/11/2021 | +1.267% | −4,8% |
+| GFSA3 | 23/09/2022 | +849% | +5,4% |
+
+Em 31.915 retornos mensais: acima de +1000% **8 → 0**; acima de +500% **12 → 0**; acima de
++100% 43 → 29. A sensibilidade do CAGR a excluir todos os extremos caiu de 9 p.p. para
+**1,9 p.p.** O que resta é majoritariamente movimento real — PMAM3 (squeeze verificado,
+volume 10-40x), AMAR3 (contagem de ações 1,00, evidência positiva de que não houve
+grupamento), AMBP3 e BHIA3/2025 (nem candidatos a evento). Não se forçou além disso:
+apagar retorno real é o erro do item 19, e custa mais caro.
+
+**Validação externa (NEFIN), os dois lados:** correlação da série de retorno total subiu de
+0,9143 para **0,9269** e a ajustada por quantidade de 0,9247 para 0,9264 — mas o desvio do
+acumulado se afastou (−139,2 → −299,1 p.p.). O afastamento é o esperado de quem removeu
+ganho falso, e os dois portfólios não são comparáveis em nível (top-N em peso igual contra
+mercado ponderado por valor), então o desvio **não** é tratado como validação em nenhuma
+direção. Fica como ponto a vigiar.
+
+**A barra revisada, e ela inverte a conclusão de 10/09:**
+
+| | antes (contaminado) | agora |
+|---|---|---|
+| benchmark equal-weight | +22,4% / Sharpe 0,57 | **+8,5% / 0,06** |
+| momento 12-1 | +26,0% / 0,55 | **+12,3% / 0,21** |
+| reversão 1 mês | +8,3% / 0,16 | −10,4% / −0,48 |
+| armagedom defensivo | +10,8% / 0,14 | +9,1% / 0,01 |
+
+O null certo já não vence as três famílias: o universo líquido em peso igual rendeu menos
+que o CDI de 2010 a 2026, e o momento é a única das três que bate o CDI. O retorno falso
+estava concentrado em papel ilíquido, que o peso igual carrega inteiro e uma carteira de 20
+papéis por momento quase não toca — por isso o benchmark era o mais contaminado dos quatro.
+Isso não promove o momento a achado (0,21 com 26% de giro mensal, 34 tentativas no ledger);
+promove a barra a honesta.
 
 ---
 

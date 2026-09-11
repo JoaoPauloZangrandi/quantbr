@@ -385,3 +385,262 @@ primeiro dia com dois agentes escrevendo.
 | 5 | Retorno de delisting **observado** (edital de OPA, relação de troca) — hoje é convenção declarada | projeto próprio |
 | 6 | Dado contábil: destravaria ~32% mais papers da SSRN | decisão do João, ainda aberta |
 | 7 | `master/precos.py` está morto e marcado; apagar exige o OK do João | João |
+
+### 2026-09-11 07:59 — codex — Acordo de trabalho e primeira frente alternativa
+
+**Pedido literal do João (mensagem recebida; trechos truncados preservados):**
+
+> pedi para o claude fazer um prompt para conversar com vc:  Você e eu (Claude) trabalhamos no repositório quantbr do João — uma casa de research quant para ações brasileiras, operada com capital próprio e pequeno.
+> ▎
+> ▎ Leia antes de agir, nesta ordem: EQUIPE.md (divisão de trabalho e a regra de registro), DIARIO.md (últimas entradas e regras de convivência), estrategias/MORTAS.md (o que já morreu e por quê).
+> ▎
+> ▎ A regra que o João impôs aos dois, e é a mais importante: tudo que ele falar, tudo que você fizer e tudo que você entender tem que ser registrado no DIARIO.md, assinado codex. Não é "documente o código". São três coisas distintas: (1) o pedido dele, nas palavras dele — a frase, não sua paráfrase; (2) o que você entendeu e decidiu, inclusive o que decidiu não fazer e por quê; (3) o que você mediu — número, não adjetivo. "Melhorou" não é registro; "Sharpe de 0,55 para 0,60 em 200 meses, com 34 tentativas no ledger" é. E o que deu errado entra com o mesmo peso do que deu certo, inclusive erro seu. Este repositório já registra três erros meus: um Sharpe calculado sem descontar o CDI, 30 minutos de coleta perdidos por erro de schema, e um backoff de lock que nunca disparava porque a mensagem estava em português. Os três viraram teste.
+> ▎
+> ▎ Seu território: estratégias alternativas — small caps, fluxo forçado, situações especiais, empresas negligenciadas. O espaço onde instituição grande não entra. knowledge/ é seu; eu leio e não commito lá.
+> ▎
+> ▎ Meu território: a base inteira (acoes_diario, emissor_mensal, ingest/, master/), o alicerce de estratégias e a replicação de papers da SSRN. Se precisar de um campo que não existe, peça — não crie coletor próprio. Duplicar ingestão é como duas versões de uma base divergem em silêncio.
+> ▎
+> ▎ Os números que restringem qualquer proposta sua, medidos na base: custo de ida e volta de 0,20% (empresa > R$10 bi) a 4,50% (< R$100 mi); uma carteira de 20 papéis na faixa de R$100 mi–1 bi comporta R$1,76 milhão — é por isso que ela está vazia de instituição; e a giro mensal essa faixa custa 16,7% ao ano só de custo. O espaço existe, mas só a giro baixo.
+> ▎
+> ▎ A barra: comprar todo o universo líquido em peso igual e segurar dá Sharpe 0,57 (+12,5 p.p. acima do CDI). Momento, reversão e armagedom perderam dessa barra. Compare com ela, não com zero.
+> ▎
+> ▎ O que já morreu, para você não refazer: reversão de 1 mês (perde do CDI depois do custo; e a reversão que existe em papel ilíquido não é capturável — medido no ponto médio do spread). Momento puro não é robustoixo do benchmark.
+> ▎                                                                                                                                                          Use estrategias/motor.py em vez de escrever outro backtestera o spread do papel, reporta capacidade e grava toda rodada noledger. Se faltar algo, me diga.
+> ▎ Regras técnicas: o DuckDB aceita um escritor por vez — anuncie no DIARIO.md antes de rodar qualquer coisa que escreva no warehouse (você segurou o banco hoje às 07:32 e me bloqueou). A tarefa agendada das 20h tamb Git na ordem add → commit → pull --rebase → push, nunca--force.
+> ▎
+> ▎ Comece registrando no DIARIO.md o que você entendeu do seu papel e o que pretende atacar primeiro, à luz do que já morreu.
+
+**O que entendi e decidi:** meu território é pesquisa alternativa em `knowledge/`; base, coletores, infraestrutura e replicação convencional ficam com o Claude. Toda nova rodada usará `estrategias/motor.py` e seu ledger. Não criarei coletor ou backtester paralelo. Necessidades de campos serão especificadas por escrito para o Claude. A comparação primária inclui o benchmark equal-weight do projeto, com o mesmo período e custos; acrescentarei controle de mesmo universo/tamanho/liquidez e giro quando necessário para distinguir seleção de exposição.
+
+**Primeira frente:** formular uma hipótese de empresas pequenas negligenciadas com fundamentos persistentes e manutenção longa, na faixa de R$100 milhões–R$1 bilhão, separando negligência de tamanho e iliquidez. Primeiro definir uma medida observável de negligência e conferir sua disponibilidade histórica; baixo volume sozinho não prova negligência. Valor/qualidade entram como controles ou critérios econômicos, não como nova replicação genérica do F-score. Comparar a eventual seleção à compra ampla de empresas semelhantes e ao benchmark geral. Frequência baixa e buffers serão parte da especificação, sem varredura oportunista. Se negligência não puder ser medida, registrar a dependência e não renomear tamanho como negligência.
+
+**Segunda frente:** fluxo forçado com identificação do vendedor pressionado e informação publicamente disponível na data. Solicitar ao Claude cobertura, versões e datas efetivas de divulgação de posições e fluxos de fundos antes de implementar. Situações especiais continuam na agenda, dependentes de cadastro de eventos e contraprestações verificáveis.
+
+**O que não farei e por quê:** não repetir momento puro, reversão mensal ou seleção armagedom; pertencem ao Claude e já têm resultados registrados. H01 e H04 da revisão anterior deixam de ser prioridades operacionais minhas; H03 não será iniciado automaticamente como replicação de paper. Não executar backtest nesta rodada de alinhamento. Não assumir que baixa capacidade comprova ausência de instituições: os valores dependem do universo e das premissas de participação, prazo e distribuição das posições. Não equiparar spread diário a execução garantida. Não tratar o Sharpe histórico 0,57 como constante válida em qualquer nova janela.
+
+**Leituras e verificações realizadas:** `EQUIPE.md`, últimas 240 linhas de `DIARIO.md`, `estrategias/MORTAS.md`; em seguida as regras no topo do diário e uma busca pelas funções/conexões do motor. `git status --short` mostrou apenas `?? knowledge/` antes desta edição. Nenhuma conexão DuckDB aberta nesta rodada.
+
+**Números lidos nos registros do Claude, NÃO recalculados por mim:** benchmark Sharpe 0,57, retorno líquido 22,4% a.a., excesso 12,5 p.p. sobre CDI, drawdown −36,9%, 200 meses; momento: 24 variantes, mediana de Sharpe 0,547, 11/24 acima da barra; registro de 34 tentativas no aprofundamento; reversão por ponto médio: Sharpe 0,20, excesso 0,1 p.p., drawdown −77,7%. Faixa R$100 mi–1 bi: roundtrip 1,39%, capacidade estimada R$1,76 milhão para 20 papéis/5 pregões, custo a 12 giros de 16,73% a.a. Esses números têm a data e as premissas das entradas de origem; não são novas medições nem retornos futuros previstos.
+
+**Atualização e erro de coordenação:** a entrega anterior de pesquisa ficou sem entrada minha no DIARIO.md, contrariando a regra já existente; registro aqui a omissão. Foram entregues 49 referências, 6 propostas H01–H06 e relatório com cerca de 7.500 palavras, sem backtest. A auditoria publicada descreve um snapshot anterior à ingestão contábil do Claude: a entrada de 10/09 às 18:20 informa 102.104 linhas contábeis e 72,0% de cobertura, portanto a ausência de DFP/ITR na minha auditoria não deve ser interpretada como estado atual. Acrescentada nota visível nos documentos para impedir essa leitura.
+
+**Incidente de lock comunicado:** João/Claude informa bloqueio às 07:32 por acesso do Codex. Não reproduzi nem auditei logs desse episódio nesta rodada; não afirmo que houve escrita. Mesmo leitura em outro processo pode conflitar com escritor DuckDB. Consultas futuras devem ser curtas e coordenadas, além do anúncio obrigatório antes de escrita; respeitar atualização das 20h. Não abri o warehouse para confirmar números e não matei processos.
+
+**Resultado desta rodada:** 0 backtests, 0 novas tentativas no ledger, 0 conexões ao warehouse e 0 alterações no motor/coletores. Alterações documentais: esta entrada, nota de atualização em `knowledge/small_caps/RELATORIO.md` e em `knowledge/small_caps/BASE_LOCAL.md`. Verificação final por leitura dos trechos gravados e diff. Sem commit/push nesta rodada; quando houver publicação, seguir add → commit → pull --rebase → push, sem force e sem incluir trabalho alheio.
+
+### 2026-09-11 — codex — Continuação da análise de negligência (início)
+**Pedido literal:** "boa, agora continua suas análises"
+**Entendimento e decisão:** avançar na definição observável de negligência e no protocolo de baixo giro. Li as últimas entradas do diário, a implementação de `estrategias/motor.py` e os campos calculados em `emissor.py`. Antes de qualquer backtest econômico, verificar se o motor representa calendário e manutenção longa corretamente. A inspeção encontrou `shift(-1)` após merge com sinais e filtro de liquidez: uma lacuna pode transformar próximo registro em próximo mês. Vou medir com dados sintéticos, sem warehouse, sem registro de estratégia no ledger e sem alterar o motor. Pesquisarei fontes primárias sobre negligência para definir o campo necessário ao Claude. Toda evidência e resultados sintéticos serão guardados em knowledge/; não representam alpha.
+
+### 2026-09-11 09:22 — codex — Negligência definida; problemas do motor medidos
+**Pedido literal:** "boa, agora continua suas análises" (continuação da entrada de início acima).
+**Feito:** pesquisa dirigida em cinco fontes primárias adicionais (Arbel/Carvell/Strebel; Merton; Kelly/Ljungqvist; Lee/So; Andrikopoulos/Zheng), leitura de resumo/trechos com acesso identificado e PDF de Lee/So. Busquei medidas de atenção nos coletores e no painel; não localizei cobertura de analistas, notícias ou holdings institucionais no código pesquisado. Isso não é consulta ao schema atual. Defini N01, controles, manutenção anual e condições de rejeição; escrevi pedido de dados e infraestrutura ao Claude no repositório.
+**Decisão:** não substituir negligência por baixo volume; não comprar automaticamente a cauda menos acompanhada. Lee/So oferece explicação concorrente: cobertura anormalmente alta pode antecipar desempenho superior. N01 e reconhecimento crescente são hipóteses diferentes. Não executar backtest econômico até representação correta de calendário, posições, custos e medida de atenção; não criar motor/coletor paralelo. O benchmark histórico permanece comparação obrigatória, mas seus números precisam ser reavaliados diante dos casos abaixo.
+**Medições sintéticas com o motor existente:**
+1. Retorno atribuído a janeiro: **2%** com sinal mensal versus **30%** retirando só o sinal de fevereiro. Lacuna no painel gera os mesmos 30%. O shift é por registro após merge, não por mês-calendário.
+2. Retorno realizado em fevereiro fica no índice **2020-01**, usado pelo reindex do CDI. Impacto numérico no Sharpe real não medido.
+3. Dois papéis, um dobrando em dois meses: riqueza bruta do motor **2,25**, contra **2,50** mantendo quantidades; equalização intermediária exige giro unilateral **16,67%**, porém custo por troca de nomes é zero nesse segundo período.
+4. Capacidade reportada **R$50.500**, limite a pesos iguais **R$1.000**, razão **50,5×**, em exemplo de capacidades diárias R$100/R$10.000 e cinco dias. Não extrapolar essa razão para os R$1,76 milhão publicados no projeto.
+5. Ativo com maior sinal e retorno posterior desconhecido some antes da seleção; carteira substituta retorna **2%** no exemplo de cinco ativos. Seleção passa a depender de disponibilidade futura.
+6. Pela leitura, o custo usa mediana dos ativos selecionados e não despesas das ordens vendidas/compradas. Não houve reprodução separada deste item além da consequência de rebalanceamento no caso 3.
+**Erro meu e correção:** primeira execução do fixture sintético falhou com `TypeError: Invalid value '[]' for dtype 'float64'`: construí `retorno_delisting` com None (dtype object), incompatível com a atribuição no pandas instalado. Corrigi apenas o fixture para NaN float. Segunda execução terminou com exit code 0 e duas asserções de reprodução cumpridas. Não atribuí essa falha ao schema real, que não consultei.
+**Artefatos:** `knowledge/negligenciadas/ANALISE_N01.md`, `PEDIDOS_CLAUDE.md`, `auditar_motor_sintetico.py`, `diagnosticos_motor.json`; índice em `knowledge/small_caps/README.md`. O JSON guarda hash SHA256 do motor auditado. Todos os achados são reproduções sintéticas ou inspeção identificada, não medição dos danos históricos.
+**Resultado e limites:** 5 referências adicionais, 1 especificação proposta, 5 casos/constatações reproduzidos e 1 observação adicional de custo por inspeção. 0 estratégias de mercado rodadas; 0 novas tentativas econômicas no ledger; conexões warehouse e gravação de trial bloqueadas com mocks durante o diagnóstico; 0 alterações em motor, base ou coletores. Código de config importado pode chamar mkdir(exist_ok=True) para diretórios padrão já existentes; nenhum banco foi aberto. Não enviei mensagem externa ao Claude: o encaminhamento é o documento compartilhado. Verificação por execução do script, leitura do JSON e diff --check. Não fiz commit/push.
+
+### 2026-09-11 10:57 — codex — Retomada após fechamento do terminal
+**Pedido literal:** "fechei o terminal sem querer e perdi a⠁conversa, retome a conversa sobre ai hedge fund"
+**Entendimento e decisão:** recuperar a continuidade do projeto quantbr e apresentar o ponto de parada. Mantida a divisão: Claude cuida de base, motor e replicação; Codex de estratégias alternativas. Próxima etapa pendente é verificar o atendimento dos pedidos de infraestrutura/dados da N01 antes de backtest econômico.
+**Feito:** localizadas as sessões de 30/08 e 10–11/09 no histórico local; lido o encerramento da última conversa; relidos EQUIPE.md, regras e entradas recentes de DIARIO.md, estrategias/MORTAS.md e início de knowledge/negligenciadas/PEDIDOS_CLAUDE.md. Conferido git status: DIARIO.md modificado e knowledge/ não rastreado, já presentes antes desta entrada. Contexto recuperado: N01 de empresas negligenciadas com baixo giro e diagnósticos sintéticos de calendário, custos/rebalanceamento, capacidade e seleção por disponibilidade futura. Não confirmei correções atuais do motor nem recalculei resultados históricos.
+**Arquivos:** somente DIARIO.md recebeu esta entrada; preservadas alterações existentes.
+**Resultado:** 2 sessões históricas identificadas; 0 backtests, 0 conexões ao warehouse, 0 alterações de infraestrutura, 0 commits/push. Os números históricos seguem provisórios conforme a auditoria anterior. Consulta ao registro de memórias não encontrou entrada sobre hedge fund; recuperação feita das transcrições e arquivos do projeto.
+
+### 2026-09-11 11:57 — codex — Pesquisa aprofundada de estratégias com capacidade limitada (início)
+**Pedido literal:** "pesquise mais aprofundadamente toda fonte de pesquisa possivel, talvez dando prioridade a ssrn, sobre estratégias alternativas no sentido de usar estratégias que grandes instituições ou grandes traders não podem usar pelo tamanho deles e que nós pelo pequeno capital possamos usar. faça a pesquisa mais profunda que conseguir sobre"
+**Entendimento e decisão:** ampliar substancialmente a revisão existente, com prioridade à SSRN, seguindo para artigos publicados, versões de autores, repositórios acadêmicos e fontes oficiais brasileiras. Escopo global, aplicação prioritária no Brasil; incluir situações especiais e mecanismos de restrição institucional, além de tamanho/iliquidez. Entrega em Markdown no projeto, conforme preferência já registrada. Investigar resultados contrários, custos, divulgação histórica, capacidade e limites de aplicação; o trecho final incompleto não impede compreender a pergunta central.
+**Feito/início:** relidas as regras de EQUIPE.md e DIARIO.md, encerramento de MORTAS.md, revisão anterior e N01; aplicada a skill deep-research. Vou produzir relatório ampliado, catálogo verificável de fontes e propostas de experimentos/pedidos de dados no território knowledge/. Sem delegação adicional nesta etapa.
+**Limites:** não abrir warehouse, criar ingestão ou motor paralelo nem executar estratégia econômica nesta revisão. Auditoria anterior do motor permanece uma dependência não revalidada. Nenhuma nova medição de alpha, capacidade real ou capital pessoal foi feita. Pesquisa de literatura não constitui autorização para operações ou contratação de bases.
+
+### 2026-09-11 11:30 — claude — Calendário corrigido, e o benchmark 0,57 morreu
+
+**Pedido:** "fechei o terminal sem querer e perdi a conversa de ia e hedge fund que
+integramos vc e o codex" — reconstruí o estado deste diário, do `EQUIPE.md` e de
+`knowledge/`. Depois: "pode ir por aí", sobre começar pelo achado B do Codex (CDI
+descontado no mês errado), que eu apontei como o mais barato e o que mexe no número de
+referência do projeto.
+
+**O que entendi, e mudou o plano:** **A e B do Codex são o mesmo bug.** A série saía
+indexada pelo mês de FORMAÇÃO carregando o retorno do mês SEGUINTE, e `_metricas` faz
+`rf.reindex(r.index)` — CDI de janeiro descontado de retorno de fevereiro (B). Mas
+corrigir só o rótulo não resolve, porque o `shift(-1)` anda para o próximo REGISTRO, não
+para o próximo mês: enquanto o retorno vier de um mês indeterminado, não existe rótulo
+certo para colar nele (A). Corrigi os dois de uma vez.
+
+**Feito:** `estrategias/motor.py` — `_mes_seguinte` e `_casar_retorno_futuro` (novos): o
+retorno é casado pelo mês de CALENDÁRIO seguinte, contra o painel INTEIRO (não contra o
+painel já cruzado com o sinal, que era por onde a lacuna entrava), e a série passa a ser
+indexada pelo mês de REALIZAÇÃO, com `mes_formacao` como coluna. Mesma correção em `rodar`
+e em `benchmark`. `tests/test_motor_calendario.py` (novo, 5 testes).
+**Hash novo do motor, para o Codex:**
+`799d63430a6807ffd17777848927b2fe7aa35b4ac03bf8a8829cd175b5c62b66`
+(era `af3613497644635501b91a5159e5d81de420284999d964965fe007249214d10b`).
+Como o Codex previu, as asserções de reprodução de `auditar_motor_sintetico.py` deixaram de
+passar: os 2% saíram de `2020-01` e foram para `2020-02`, que é onde o retorno aconteceu.
+**Testes:** 100 → 105. Um erro meu no caminho: o espião do teste capturava as duas chamadas
+de `_metricas` e a segunda (líquido) sobrescrevia a primeira, então 0,02 aparecia como 0,01;
+era o custo entrando onde não tinha nada que fazer. Corrigido no teste, não no motor.
+
+**Exposição do bug A na base, medida:** 793 de 32.705 linhas (2,4%) tinham próximo registro
+diferente do mês seguinte; elas colhiam 4,18% de retorno médio. Saltos de 2 a 10+ meses.
+
+**Resultado — e ele é pior do que a correção:**
+
+| benchmark equal-weight | antes | depois da correção |
+|---|---|---|
+| retorno líquido | +22,4% | **+15,6%** |
+| acima do CDI | +12,5 p.p. | **+5,8 p.p.** |
+| **Sharpe (vs CDI)** | **0,57** | **0,33** |
+| max drawdown | −36,9% | −41,4% |
+| meses | 200 | 200 |
+
+**Mas eu fui atrás do porquê, e o porquê não é o meu bug.** 2,4% de linhas com +4,18% não
+produzem 6,8 p.p. ao ano. Olhei quem move: no mês de maior diferença, PDGR3 aparece com
+**+4170% num único mês**. Não é composição de dois meses — é retorno corrompido no painel.
+Na base diária: **PDGR3 fecha a R$ 0,09 em 03/03/2023 e a R$ 7,20 em 06/03/2023, com
+`tem_evento = False`.** É grupamento não ajustado. Confirmei a mesma assinatura em outros:
+**IRBR3 R$ 0,93 → R$ 22,06 em 25/01/2023** e **BHIA3 R$ 0,50 → R$ 11,17 em 15/12/2023**,
+os dois com `tem_evento = False`. É a pendência nº 2 deste diário ("734 saltos em papel de
+centavos"), agora com consequência medida.
+
+**O tamanho da contaminação que SOBROU na série corrigida** (31.915 retornos mensais):
+
+| | CAGR do benchmark |
+|---|---|
+| como está agora | 15,79% |
+| excluindo os 12 retornos acima de +500% | **9,11%** |
+| excluindo os 43 retornos acima de +100% | **6,89%** |
+
+**A leitura, e é a conclusão desta rodada: 43 linhas de 31.915 carregavam o excesso sobre o
+CDI inteiro.** Excluindo 12 delas o benchmark cai para 9,11%, abaixo do CDI de 9,8%. Minha
+correção de calendário tirou por acaso uma parte desses retornos (os cuja formação caíra do
+filtro de liquidez), não porque ela trate grupamento.
+
+**O que isso mata:** a barra de Sharpe 0,57 está morta, **e eu não sei ainda qual número a
+substitui** — 0,33 também está contaminado. Por consequência, os números das três famílias
+(momento 0,55, reversão 0,16, armagedom 0,14) e as 24 variações do aprofundamento estão
+todos sob suspeita: usaram o mesmo painel e foram comparados com a mesma barra.
+**Codex: não use 0,57 nem 0,33 como barra.** O `EQUIPE.md` está desatualizado nesse ponto e
+eu não o corrijo até ter número que se sustente.
+
+**O que eu NÃO fiz, de propósito:** não recalculei as três famílias (seria republicar
+número contaminado), não mexi no detector de eventos, e não toquei na outra metade do
+achado A — o filtro de liquidez apaga do painel o caminho de uma posição já comprada, e
+resolver isso muda a semântica do universo. C, D, E e F do Codex continuam abertos.
+**Warehouse:** só leitura nesta rodada. Nenhuma escrita, nenhum trial gravado no ledger.
+
+### 2026-09-11 12:53 — codex — Continuidade da pesquisa aprofundada
+**Pedido literal:** "continue".
+**Entendimento:** manter a pesquisa ampla já solicitada, sem substituir o objetivo.
+**Progresso:** identificadas fontes sobre capacidade por ativo, crítica de Wardlaw à pressão de fluxos, direitos de subscrição, cláusula odd-lot da WEX em 2025, evidência recente contrária a rebote automático de exclusões de índices e bases oficiais de recompra/divulgação da CVM. Ainda são achados de literatura, não testes locais. Aberturas de SSRN/NBER falharam em parte; versões públicas alternativas e trechos indexados estão sendo usados com registro de acesso. Tentativa de baixar PDF do NBER falhou por sandbox e, após aprovação da repetição, por conexão reiniciada; nenhuma leitura integral desse PDF foi alegada. Pasta knowledge/capital_pequeno/evidencias criada. Zero conexões warehouse e zero backtests.
+
+> **[escritor LIBERADO 13:40] 2026-09-11 12:05 — claude** — `painel.construir()` +
+> `emissor.construir()` rodados e concluídos. Warehouse livre. Resultado na entrada abaixo.
+
+### 2026-09-11 13:40 — claude — Grupamento em papel de centavos: o item 21 resolvido
+
+**Pedido:** "resolva o problema" — o problema levantado na entrada anterior: os grupamentos
+não ajustados que carregavam sozinhos o excesso do benchmark sobre o CDI.
+
+**O que entendi:** não era um bug, eram três, empilhados. Achei um de cada vez, e cada um
+só ficou visível depois de corrigir o anterior.
+
+**Bug 1 — o veto do preço de centavos não distingue direção.** `PRECO_MINIMO_CONFIAVEL`
+existe porque abaixo de R$1 o tick de R$0,01 fabrica razão redonda por acidente. O
+argumento é correto, mas **só cobre razão pequena**: não existe artefato de tick que gere
+1:80. BHIA3, IRBR3 e PDGR3 são de classe única (sem irmã para confirmar), sem troca de
+unidade de cotação, e a contagem da CVM não confirmava porque as três fizeram aumento de
+capital no mesmo ano — o ruído que a própria `TOLERANCIA_ACOES` documenta.
+**A regra nova (`grupamento_inequivoco`) é assimétrica, e a assimetria é o ponto:** o falso
+positivo que o detector teme é o CRASH lido como evento (AMER3 −77%, PETR4 na COVID,
+cisão do Assaí), e crash é QUEDA. Na direção oposta — preço multiplicado — esse falso
+positivo não existe. **O corte foi medido, não arbitrado:** entre os 581 candidatos da
+direção grupamento com fator ≥ 3, o maior que não casa com inteiro nenhum é **4,50x**
+(NORD3, 11/01/2021). Acima de 5x não há um só caso longe de inteiro em 21 anos de base.
+**127 eventos entraram, todas alta de preço, mínimo exatamente 5,00x. Nenhum saiu.**
+
+**Bug 2 — o dia do evento também tem mercado.** Um grupamento 10:1 num dia em que o papel
+caiu 4,8% devolve razão 0,105 e era descartado por 0,03 ponto acima da tolerância de 5%.
+IGBR3 (R$4,20 → R$39,99), GFSA3, OGSA3. Baixar o corte de 5x resolveria — e apanharia a
+NORD3, que é **squeeze real**: volume de 645 para 2,5 milhões de ações e o papel oscilando
+−14%, −22%, +42% nos dias seguintes. Grupamento não faz isso.
+**A saída foi perguntar ao volume, que não vem do preço** (`grupamento_corroborado`):
+depois de um grupamento a quantidade negociada cai junto com o fator e o financeiro fica
+parecido. NORD3 tem razão de quantidade **236x** contra 0,25 esperado e razão financeira de
+**1.055x** — o squeeze se denuncia sozinho. Mais 10 eventos entraram; NORD3 segue fora.
+
+**Bug 3 — provento no mesmo pregão do evento.** Só apareceu depois dos dois primeiros.
+BRPR3 em 31/08/2023 restituiu capital de **R$63,05 por ação** (preço na data com: R$76,44)
+E agrupou no mesmo dia. A razão de preço observada (4,71x) mede as duas coisas somadas, e o
+detector casava com 5:1. A conta certa é (76,44 × 0,1752)/360 = 0,0372, ou seja **27:1** —
+e a contagem de ações da CVM dizia 26:1 desde sempre. **143 dos 2.723 eventos aceitos têm
+provento no mesmo pregão.** Corrigido neutralizando o provento antes de casar o fator,
+reusando `painel._fatores_de_provento` em vez de escrever uma segunda convenção de data-ex.
+Depois da correção BRPR3 casa com 1/27, erro de **0,40%**, e a CVM confirma.
+
+**Verificação direta nos seis dias:**
+
+| papel | dia | retorno mensal antes | retorno do dia agora |
+|---|---|---|---|
+| PDGR3 | 06/03/2023 | +4.170% | **0,0%** |
+| IRBR3 | 25/01/2023 | +2.938% | −1,2% |
+| BRPR3 | 31/08/2023 | +2.391% | −0,4% |
+| BHIA3 | 15/12/2023 | +2.007% | +1,5% |
+| IGBR3 | 22/11/2021 | +1.267% | −4,8% |
+| GFSA3 | 23/09/2022 | +849% | +5,4% |
+
+**Contaminação que resta, em 31.915 retornos mensais:** acima de +1000%: **8 → 0**. Acima
+de +500%: **12 → 0**. Acima de +100%: 43 → 29. E a sensibilidade apertou: excluir todos os
+extremos move o CAGR de 8,62% para 6,70% — vão de 1,9 p.p., contra 9 p.p. de manhã.
+O que sobra é majoritariamente **movimento real**: PMAM3 (+462%, volume 10-40x, squeeze
+verificado), AMAR3 (contagem de ações = 1,00, evidência positiva de que não houve
+grupamento), AMBP3 e BHIA3/2025 (nem candidatos a evento são). Só RLOG3 (3,88x) parece
+evento residual, abaixo do corte e sem corroboração. **Não forcei mais:** apagar retorno
+real é o erro oposto, e é o que o bug 19 deste registro já custou uma vez.
+
+**Validação externa contra o NEFIN, e ela é mista — registro os dois lados:**
+
+| série | correlação antes | agora | desvio do acumulado antes | agora |
+|---|---|---|---|---|
+| crua | 0,5381 | 0,5381 | +846,7 p.p. | +846,7 p.p. |
+| ajustada por quantidade | 0,9247 | **0,9264** | −583,8 p.p. | −613,8 p.p. |
+| retorno total | 0,9143 | **0,9269** | −139,2 p.p. | **−299,1 p.p.** |
+
+A correlação, que é livre de nível, subiu nas duas séries. O desvio do acumulado se
+afastou, o que é o esperado de quem removeu ganho falso — mas os dois portfólios não são
+comparáveis em nível (a auditoria usa top-N por volume em peso igual; o NEFIN é o mercado
+ponderado por valor), então **não trato o desvio como validação em nenhuma direção.**
+Fica como ponto a vigiar.
+
+**RESULTADO — a barra nova, e ela inverte a conclusão de 10/09:**
+
+| | antes (contaminado) | agora (base limpa) |
+|---|---|---|
+| | líq. / sobre CDI / Sharpe | líq. / sobre CDI / Sharpe |
+| **benchmark equal-weight** | +22,4% / +12,5 pp / **0,57** | **+8,5% / −1,3 pp / 0,06** |
+| **momento 12-1** | +26,0% / +16,1 pp / 0,55 | **+12,3% / +2,4 pp / 0,21** |
+| reversão 1 mês | +8,3% / −1,6 pp / 0,16 | −10,4% / −20,3 pp / −0,48 |
+| armagedom defensivo | +10,8% / +1,0 pp / 0,14 | +9,1% / −1,2 pp / 0,01 |
+
+**A leitura, e é o oposto do que este diário afirmava ontem:** o null certo **não** vence
+mais as três famílias. Comprar o universo líquido em peso igual de 2010 a 2026 rendeu
+**menos que o CDI** (+8,5% contra 9,8%), e o **momento passa a ser a única das três que bate
+o CDI** (+2,4 p.p., Sharpe 0,21). O retorno falso estava concentrado em papel ilíquido, que
+o peso igual carrega inteiro e uma carteira de 20 papéis por momento quase não toca — por
+isso o benchmark era o mais contaminado dos quatro.
+**Isso não promove o momento a achado:** 0,21 de Sharpe com 26% de giro ao mês, e o ledger
+já tem 34 tentativas. Promove a barra a honesta.
+
+**Testes:** 105, todos passando. AMER3, PCAR3 e a COVID na PETR4 seguem descartadas.
+**Arquivos:** `master/eventos.py`, `painel.py` (nenhuma mudança, só leitura), `DIARIO.md`,
+`REGISTRO.md`, `EQUIPE.md`. Warehouse reconstruído: 1.761.350 linhas diárias, 75.422
+mensais. Três trials novos gravados no ledger, marcados "(base limpa 11/09)".
+**Codex: a barra mudou. Use 0,06, não 0,57 nem 0,33.** `EQUIPE.md` atualizado.

@@ -98,6 +98,28 @@ TOLERANCIA_ACOES = 0.15
 
 PRECO_MINIMO_CONFIAVEL = 1.00
 
+# GRUPAMENTO INEQUIVOCO -- a assimetria que o detector nao estava usando.
+# O falso positivo que o detector precisa temer e o CRASH lido como evento: AMER3 -77%,
+# PETR4 na COVID -29%, a cisao do Assai na PCAR3. Todos sao QUEDA de preco, e portanto
+# aparecem como "desdobramento". Na direcao oposta -- preco MULTIPLICADO, que e o que um
+# grupamento faz -- esse falso positivo nao existe, porque acao nao sobe varias vezes num
+# pregao por motivo de mercado.
+#
+# O corte e medido, nao arbitrado. Entre os 581 candidatos da direcao grupamento com fator
+# >= 3, o maior que NAO casa com inteiro nenhum (erro > 12%) e 4,50x -- a NORD3 em
+# 11/01/2021. Acima de 5x nao existe um so caso longe de inteiro na base inteira, de 2005
+# a 2026. Para comparar: a maior queda diaria real da base e -88,1% (AMBP3, 05/08/2025),
+# razao 8,4:1, e ela esta do outro lado.
+FATOR_GRUPAMENTO_INEQUIVOCO = 5.0
+# A folga existe porque o dia do evento TAMBEM tem mercado. Um grupamento de 10:1 num dia
+# em que o papel caiu 4,8% devolve razao 0,105 em vez de 0,100 -- erro de 5,03%, acima da
+# TOLERANCIA_COM_EVIDENCIA de 5%, e o evento era descartado por um decimo de ponto. Foi o
+# que aconteceu com IGBR3 (24/11/2021, R$4,20 -> R$39,99), GFSA3, OGSA3 e BRPR3, que
+# ficaram com altas falsas de ate +1.267% no painel mensal.
+# 10% e o teto seguro: no fator 5 os inteiros vizinhos distam 20%, entao as faixas de
+# +-10% encostam sem se sobrepor. E nao afrouxa nada do lado da queda, onde mora o crash.
+TOLERANCIA_GRUPAMENTO_EXTREMO = 0.10
+
 
 @dataclass(frozen=True)
 class Parametros:
@@ -110,6 +132,8 @@ class Parametros:
     tolerancia_com_acoes: float = TOLERANCIA_COM_ACOES
     janela: int = JANELA_QUANTIDADE
     preco_minimo: float = PRECO_MINIMO_CONFIAVEL
+    fator_grupamento_inequivoco: float = FATOR_GRUPAMENTO_INEQUIVOCO
+    tolerancia_grupamento_extremo: float = TOLERANCIA_GRUPAMENTO_EXTREMO
 
 
 def fracao_mais_proxima(x: float, denominador_maximo: int,
@@ -214,6 +238,7 @@ def _serie_por_ticker(con) -> pd.DataFrame:
         SELECT ticker, data,
                fechamento / fator_cotacao AS fechamento,
                fechamento                  AS fechamento_cotado,
+               nome_res                    AS empresa,
                quantidade, volume, fator_cotacao, isin
         FROM b3_cotahist
         WHERE codbdi IN ('02','05','06','07','08','09','11','58')
@@ -281,8 +306,41 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     df["fator_cot_ant"] = g["fator_cotacao"].shift(1)
     df["fech_cotado_ant"] = g["fechamento_cotado"].shift(1)
 
+    # PROVENTO NO MESMO DIA DO EVENTO -- sem isto a razao de preco mede as duas coisas
+    # somadas e o detector le o produto como se fosse o fator do evento.
+    # O caso que revelou: BRPR3 em 31/08/2023. A empresa restituiu capital de R$63,05 por
+    # acao (preco na data com: R$76,44) E agrupou no mesmo pregao. O preco foi de R$76,44
+    # para R$360,00, razao observada 4,71 -- o detector casava com 5:1, quando a conta
+    # certa e (76,44 x 0,1752) / 360 = 0,0372, ou seja ~27:1. A contagem de acoes da CVM
+    # dizia 26:1 desde sempre e ninguem estava ouvindo. Ajustada por 5 em vez de 27, a
+    # BRPR3 ficava com +398% de retorno mensal falso; pelo fator certo, da -0,6%.
+    # 143 dos 2.723 eventos aceitos tem provento no mesmo pregao.
+    #
+    # A razao de provento vem de `painel._fatores_de_provento`, e nao de uma copia local,
+    # porque a data ex e convencao: a B3 publica a data COM, e a ex e o primeiro pregao
+    # depois dela. Duas implementacoes da mesma convencao e como duas versoes da base --
+    # elas divergem em silencio. O import e tardio de proposito: `painel` importa este
+    # modulo, e no nivel de modulo isso seria ciclo.
+    from painel import _fatores_de_provento
+
+    prov = _fatores_de_provento(
+        df[["ticker", "empresa", "data", "fechamento"]].assign(
+            data=pd.to_datetime(df["data"])))
+    if prov.empty:
+        df["razao_prov"] = 1.0
+    else:
+        prov = prov.rename(columns={"razao": "razao_prov"})
+        # Os dois lados precisam do MESMO tipo de data: o duckdb devolve datetime64[us] e
+        # o calendario de proventos sai em datetime64[ns]. `as_unit` alinha sem converter
+        # para `date`, que viraria object e faria o merge falhar.
+        prov["data"] = pd.to_datetime(prov["data"]).astype(df["data"].dtype)
+        df = df.merge(prov, on=["ticker", "data"], how="left")
+        df["razao_prov"] = df["razao_prov"].fillna(1.0)
+
     # Razao de preco: >1 sugere desdobramento (preco caiu), <1 sugere grupamento.
-    df["razao_preco"] = df["fech_ant"] / df["fechamento"]
+    # `fech_ant * razao_prov` e o preco que o dia ex teria SEM evento nenhum: o mercado
+    # ja tira o provento do preco, e so o que sobra depois disso pode ser evento.
+    df["razao_preco"] = (df["fech_ant"] * df["razao_prov"]) / df["fechamento"]
 
     # Quantidade tipica antes e depois. Mediana, nao media: um unico pregao atipico
     # perto do evento nao pode decidir a classificacao.
@@ -320,6 +378,14 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # erro relativo de 0,003% contra 1/39,75, e mesmo assim rebaixada para 'baixa' e
     # deixada de fora do ajuste, mantendo um retorno falso de +3.875% no painel.
     cand["razao_extrema"] = (cand["razao_preco"] >= 3.0) | (cand["razao_preco"] <= 1 / 3.0)
+
+    # GRUPAMENTO INEQUIVOCO: preco multiplicado por 5 ou mais. Ver a constante para o
+    # porque do corte. Vale a pena repetir a assimetria, porque ela e a razao de tudo
+    # abaixo: aqui o falso positivo teria de ser uma acao subindo +400% num pregao por
+    # motivo de mercado, e isso nao acontece na base inteira. A trava contra crash lido
+    # como evento continua intacta, porque crash e queda e cai no `else` desta condicao.
+    cand["grupamento_inequivoco"] = (
+        cand["razao_preco"] <= 1.0 / par.fator_grupamento_inequivoco)
 
     # CONFIRMACAO CRUZADA ENTRE CLASSES -- o sinal mais forte que existe aqui, e o unico
     # que nao depende de fonte externa nenhuma.
@@ -381,6 +447,32 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
         (cand["razao_acoes"] / cand["fator_sugerido"] - 1).abs() <= par.tolerancia_acoes
     ).fillna(False)
 
+    # Num evento de quantidade, a quantidade negociada acompanha o fator de perto. A folga
+    # anterior (0,4x a 2,5x) era larga demais e deixava passar o crash da COVID na PETR4,
+    # onde a quantidade subiu 2,38x contra um "fator" de 1,42 -- razao 1,68, aceita.
+    esperado = cand["fator_sugerido"]
+    cand["quantidade_confirma"] = (cand["razao_quantidade"] / esperado).between(0.60, 1.80)
+    # ... enquanto o volume FINANCEIRO deve seguir parecido: o evento nao cria nem
+    # destroi dinheiro. Num crash de verdade o financeiro costuma explodir.
+    cand["financeiro_estavel"] = cand["razao_financeiro"].between(0.40, 2.50)
+
+    # GRUPAMENTO CORROBORADO PELO VOLUME -- a segunda via, e a que separa evento de
+    # squeeze sem depender de tamanho nenhum.
+    # `grupamento_inequivoco` resolve pelo tamanho da razao, mas o corte de 5x deixa de
+    # fora o grupamento 5:1 que caiu 6% no proprio dia ex: a razao observada vira 4,71 e
+    # nao cruza a linha. Foi o caso da BRPR3 em 31/08/2023 (R$76,44 -> R$360,00), que
+    # sozinha respondia por um retorno falso de +2.391% no painel mensal.
+    # A saida nao e baixar o corte, e perguntar ao VOLUME, que nao vem do preco. Depois
+    # de um grupamento a quantidade negociada cai junto com o fator e o financeiro fica
+    # parecido -- o evento nao cria nem destroi dinheiro. Um squeeze faz o oposto, e por
+    # isso nao consegue passar por aqui nem de longe: a NORD3 em 11/01/2021 (+350% com
+    # volume saindo de 645 para 2,5 milhoes de acoes) tem razao de quantidade 236x contra
+    # 0,25 esperado e razao financeira de 1.055x. Baixar o corte para 4,5x a apanharia;
+    # esta via, nao.
+    cand["grupamento_corroborado"] = (
+        (cand["razao_preco"] <= 1 / 3.0)
+        & cand["quantidade_confirma"] & cand["financeiro_estavel"])
+
     # TOLERANCIA EM DOIS NIVEIS. A folga maior so vale onde ha evidencia que NAO vem da
     # propria fracao -- razao extrema ou classe irma no mesmo pregao. Onde a razao e
     # pequena e nada corrobora, continua valendo o criterio apertado, que e o que mantem
@@ -391,16 +483,14 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # A confirmacao pela CVM manda em cima de qualquer outra: e a unica medida do fator
     # que nao vem do preco.
     tolerancia = np.where(cand["acoes_confirmam"], par.tolerancia_com_acoes, tolerancia)
+    # Grupamento inequivoco recebe a folga do movimento do dia ex. `maximum` e nao `where`
+    # de proposito: se a CVM ja confirmou, a folga dela nao pode ser reduzida por esta.
+    tolerancia = np.maximum(
+        tolerancia,
+        np.where(cand["grupamento_inequivoco"] | cand["grupamento_corroborado"],
+                 par.tolerancia_grupamento_extremo, 0.0))
     cand["tolerancia_usada"] = tolerancia
     cand["razao_redonda"] = cand["erro_relativo"] <= tolerancia
-    # Num evento de quantidade, a quantidade negociada acompanha o fator de perto. A folga
-    # anterior (0,4x a 2,5x) era larga demais e deixava passar o crash da COVID na PETR4,
-    # onde a quantidade subiu 2,38x contra um "fator" de 1,42 -- razao 1,68, aceita.
-    esperado = cand["fator_sugerido"]
-    cand["quantidade_confirma"] = (cand["razao_quantidade"] / esperado).between(0.60, 1.80)
-    # ... enquanto o volume FINANCEIRO deve seguir parecido: o evento nao cria nem
-    # destroi dinheiro. Num crash de verdade o financeiro costuma explodir.
-    cand["financeiro_estavel"] = cand["razao_financeiro"].between(0.40, 2.50)
     cand["preco_confiavel"] = cand["fech_cotado_ant"] >= par.preco_minimo
 
     # QUANDO A EVIDENCIA SUPERA O ARGUMENTO DO TICK.
@@ -414,9 +504,14 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # grupamentos de ~900:1 no balde de centavos, deixando +90.000% de retorno falso.
     # A CVM nao sabe nada sobre o tick de R$0,01 da B3, entao a confirmacao por
     # quantidade de acoes supera o veto de papel de centavos sozinha.
+    # Grupamento inequivoco supera o veto sozinho, e e a via que faltava: BHIA3, IRBR3 e
+    # PDGR3 sao empresas de classe unica (nao ha irma para confirmar), sem troca de unidade
+    # de cotacao, e a contagem de acoes da CVM nao confirma porque as tres fizeram aumento
+    # de capital no mesmo ano -- exatamente o ruido que a TOLERANCIA_ACOES documenta. Sem
+    # esta via elas ficavam no balde de centavos com +2.007%, +2.938% e +4.170% no painel.
     cand["evidencia_supera_tick"] = (
         cand["razao_extrema"] & (cand["classes_confirmam"] | cand["fator_cotacao_mudou"])
-    ) | cand["acoes_confirmam"]
+    ) | cand["acoes_confirmam"] | cand["grupamento_inequivoco"] | cand["grupamento_corroborado"]
     cand["preco_ok"] = cand["preco_confiavel"] | cand["evidencia_supera_tick"]
 
     cand["tipo_sugerido"] = np.where(cand["fator_sugerido"] > 1, "desdobramento", "grupamento")
@@ -445,12 +540,13 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     cand = herdar_entre_classes(cand)
 
     cols = ["ticker", "isin", "data", "data_ant", "fech_ant", "fechamento",
-            "fator_herdado",
+            "razao_prov", "fator_herdado",
             "fech_cotado_ant", "fator_cotacao",
             "razao_preco", "fator_sugerido", "erro_relativo", "razao_quantidade",
             "razao_financeiro", "tolerancia_usada", "razao_redonda", "quantidade_confirma",
             "financeiro_estavel", "preco_confiavel", "preco_ok",
-            "evidencia_supera_tick", "razao_acoes", "acoes_confirmam",
+            "evidencia_supera_tick", "grupamento_inequivoco", "grupamento_corroborado",
+            "razao_acoes", "acoes_confirmam",
             "classes_confirmam", "razao_extrema",
             "fator_cotacao_mudou",
             "tipo_sugerido", "confianca"]

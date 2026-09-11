@@ -66,26 +66,33 @@ A leitura vale para as duas frentes: **o espaço onde instituição não entra e
 a giro baixo.** A faixa abaixo de R$ 100 milhões é armadilha dupla — comporta R$ 110 mil e
 cobra 54% ao ano a giro mensal.
 
-### A barra que o alicerce estabeleceu (10/09/2026)
+### A barra que o alicerce estabeleceu — REVISADA EM 11/09/2026
 
-As três famílias já foram construídas e medidas. **O null certo — comprar todo o universo
-líquido em peso igual e segurar — venceu as três em Sharpe.** Isso vale para as duas
-frentes: qualquer estratégia, ortodoxa ou alternativa, tem que ser comparada com isto.
+**Atenção: a barra de Sharpe 0,57 publicada em 10/09/2026 estava errada e foi retirada.**
+Ela vinha de grupamentos não ajustados em papel de centavos, que entravam no painel mensal
+como retorno de quatro dígitos (PDGR3 +4.170%, IRBR3 +2.938%, BHIA3 +2.007%). Quarenta e
+três linhas em 31.915 carregavam o excesso sobre o CDI inteiro. O detalhe está no
+`DIARIO.md`, entrada de 11/09 13:40, e em `REGISTRO.md` seção 6.
+
+Números atuais, sobre a base corrigida — 200 meses (2010–2026), 20 papéis, líquido de
+custo, filtro de R$500 mil/dia:
 
 | | retorno líquido | acima do CDI | Sharpe (vs CDI) | max DD | giro |
 |---|---|---|---|---|---|
-| **benchmark equal-weight** | **+22,4%** | **+12,5 p.p.** | **0,57** | −36,9% | 4%/mês |
-| momento 12-1 | +26,0% | +16,1 p.p. | 0,55 | −42,1% | 27%/mês |
-| reversão 1 mês | +8,3% | **−1,6 p.p.** | 0,16 | −75,7% | 81%/mês |
-| armagedom defensivo | +10,8% | +1,0 p.p. | 0,14 | **−21,6%** | 26%/mês |
+| benchmark equal-weight | +8,5% | **−1,3 p.p.** | **0,06** | −44,1% | 3%/mês |
+| **momento 12-1** | **+12,3%** | **+2,4 p.p.** | **0,21** | −44,0% | 26%/mês |
+| reversão 1 mês | −10,4% | −20,3 p.p. | −0,48 | −91,4% | 80%/mês |
+| armagedom defensivo | +9,1% | −1,2 p.p. | 0,01 | **−28,9%** | 23%/mês |
 
-200 meses (2010–2026), 20 papéis, líquido de custo, filtro de R$500 mil/dia.
+**A conclusão inverteu.** O null certo já não vence as três famílias: comprar o universo
+líquido em peso igual de 2010 a 2026 rendeu MENOS que o CDI, e o momento é a única das três
+que bate o CDI. O retorno falso estava concentrado em papel ilíquido, que o peso igual
+carrega inteiro e uma carteira de 20 papéis por momento quase não toca.
 
-Leitura, em uma linha cada: **momento** rende mais e arrisca mais na mesma proporção;
-**reversão** perde do CDI depois do custo e está morta; **armagedom** entrega o drawdown
-menor que promete e cobra por isso quase todo o prêmio.
+Isso não promove o momento a achado — 0,21 de Sharpe com 26% de giro mensal, e o ledger já
+tem 34 tentativas registradas. Promove a barra a honesta.
 
-O detalhe completo, com o porquê de cada morte, está em `estrategias/MORTAS.md`.
+**A barra a usar é 0,06.** Qualquer estratégia, ortodoxa ou alternativa, compara com ela.
 
 ### As regras de convivência
 
