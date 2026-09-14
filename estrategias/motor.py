@@ -63,21 +63,60 @@ class Parametros:
     mes_inicial: str = "2010-01"   # antes disso nao ha valor de mercado nem balanco
     mes_final: str = "2026-09"
     long_short: bool = False       # False = so comprado; True = compra topo, vende fundo
+    # O que se assume que rendeu a posicao cujo mes seguinte nao existe no painel e que
+    # tambem nao tem retorno de delisting -- papel que simplesmente parou de negociar.
+    # 0.0 e "dinheiro preso, sem ganho nem perda"; -1.0 e "perda total". A escolha muda o
+    # resultado, entao e parametro declarado e vai para o ledger, nao constante escondida.
+    retorno_posicao_presa: float = 0.0
 
 
 def _painel(par: Parametros) -> pd.DataFrame:
+    """O painel INTEIRO do periodo. Sem filtro de liquidez -- de proposito.
+
+    O filtro de liquidez decide quem pode ser COMPRADO, e por isso e aplicado na formacao
+    da carteira (`_elegiveis`). Aplica-lo aqui apagava junto o CAMINHO de uma posicao ja
+    comprada: o papel que seca no mes seguinte -- cai abaixo de R$500 mil/dia -- sumia do
+    painel e a posicao evaporava sem retorno nenhum. A carteira ficava, por construcao,
+    com a parte liquida do que ela mesma comprou.
+
+    E a outra metade do achado A do Codex (11/09/2026). Quem compra no limite da liquidez
+    sabe que ela pode secar; o motor tem que MEDIR isso, nao apagar.
+    """
     with warehouse.connect(read_only=True) as con:
         return con.execute(f"""
             SELECT cnpj, ano_mes, ticker, nome,
                    {par.coluna_retorno} AS retorno,
                    volume_mediano, custo_roundtrip, capacidade_dia,
-                   valor_mercado_empresa, pregoes_no_mes,
+                   valor_mercado_empresa, pregoes_no_mes, negociou_no_fim_do_mes,
                    motivo_saida, retorno_delisting
             FROM emissor_mensal
             WHERE ano_mes BETWEEN '{par.mes_inicial}' AND '{par.mes_final}'
-              AND volume_mediano >= {par.liquidez_minima}
             ORDER BY cnpj, ano_mes
         """).df()
+
+
+def _elegiveis(px: pd.DataFrame, par: Parametros) -> pd.DataFrame:
+    """Quem pode ENTRAR na carteira neste mes. Nao confundir com quem pode ser MEDIDO.
+
+    Duas condicoes, e a segunda foi acrescentada em 14/09/2026:
+
+      1. negociabilidade -- volume mediano diario acima do piso;
+      2. estar A VENDA no instante da formacao. A carteira se forma no fechamento do
+         ultimo pregao do mes; papel que ja tinha parado de negociar antes disso nao da
+         para comprar naquele dia, por mais alto que esteja o sinal.
+
+    A segunda saiu de olhar as 78 "posicoes presas" do achado E uma a uma: 53 delas (68%)
+    tinham menos de 15 pregoes no mes da formacao, contra 1,3% do universo, e 66 eram
+    empresa saindo da bolsa -- AMBEV, Souza Cruz, CETIP, Rumo, Smiles, TAM. Nao eram
+    posicoes que ficaram presas depois de compradas: eram compras impossiveis. Isso NAO e
+    informacao do futuro -- e o que qualquer um veria na tela no dia da formacao.
+
+    Custa 0,58% das linhas elegiveis (229 de 39.152).
+    """
+    pode = px["volume_mediano"] >= par.liquidez_minima
+    if "negociou_no_fim_do_mes" in px.columns:
+        pode &= px["negociou_no_fim_do_mes"].fillna(True).astype(bool)
+    return px[pode]
 
 
 def _mes_seguinte(ano_mes) -> pd.Index:
@@ -88,7 +127,8 @@ def _mes_seguinte(ano_mes) -> pd.Index:
     return pd.Index((pd.PeriodIndex(idx, freq="M") + 1).strftime("%Y-%m"))
 
 
-def _casar_retorno_futuro(alvo: pd.DataFrame, painel: pd.DataFrame) -> pd.DataFrame:
+def _casar_retorno_futuro(alvo: pd.DataFrame, painel: pd.DataFrame,
+                          retorno_presa: float = 0.0) -> pd.DataFrame:
     """Cola em cada linha o retorno do MES DE CALENDARIO seguinte, e o rotula.
 
     Nao usa `shift(-1)`. O shift anda para o proximo REGISTRO, e registro nao e mes: se o
@@ -101,9 +141,19 @@ def _casar_retorno_futuro(alvo: pd.DataFrame, painel: pd.DataFrame) -> pd.DataFr
     unico mes do meio. A fonte do retorno e o painel INTEIRO, nao o painel ja cruzado com
     o sinal -- senao a propria ausencia de sinal abre a lacuna.
 
-    Quem nao tem mes seguinte no painel fica com o retorno de delisting, se houver, e sai
-    da carteira se nao houver. Sair e a resposta honesta: o motor nao sabe o que aconteceu
-    com o papel naquele mes, e inventar o mes seguinte disponivel foi exatamente o bug.
+    Quem nao tem mes seguinte no painel fica com o retorno de delisting, se houver. Se nao
+    houver, a linha CONTINUA, com `posicao_presa = True` e o retorno declarado em
+    `par.retorno_posicao_presa`.
+
+    POR QUE ELA NAO PODE SER DESCARTADA (achado E do Codex, 11/09/2026). Descartar antes
+    de rankear faz a SELECAO depender de o papel existir no futuro: o ativo de maior sinal
+    que parou de negociar sumia da cross-section e o 21o colocado herdava a vaga. Isso nao
+    e conservadorismo, e look-ahead com sinal invertido -- o motor so escolhia entre os que
+    sobreviveram. A resposta honesta nao e apagar a posicao, e carrega-la com uma hipotese
+    escrita sobre o que ela rendeu.
+
+    O unico descarte que fica e o do mes que AINDA NAO ACONTECEU: formacao cujo mes de
+    realizacao passa do fim do painel nao e posicao presa, e mes que nao existe.
     """
     d = alvo.copy()
     d["mes_realizacao"] = _mes_seguinte(d["ano_mes"])
@@ -113,7 +163,13 @@ def _casar_retorno_futuro(alvo: pd.DataFrame, painel: pd.DataFrame) -> pd.DataFr
     # Papel que sai da base leva o retorno de delisting, em vez de sumir.
     saiu = d["retorno_futuro"].isna() & d["retorno_delisting"].notna()
     d.loc[saiu, "retorno_futuro"] = d.loc[saiu, "retorno_delisting"]
-    return d.dropna(subset=["retorno_futuro"])
+    # Mes que nao existe no painel INTEIRO nao e posicao presa, e mes que a base nao tem
+    # -- inclusive o mes seguinte ao fim do periodo. Esse sai. Ja o mes que existe para o
+    # mercado e falta para ESTE papel e posicao presa, e fica.
+    d = d[d["mes_realizacao"].isin(set(painel["ano_mes"]))]
+    d["posicao_presa"] = d["retorno_futuro"].isna()
+    d["retorno_futuro"] = d["retorno_futuro"].fillna(retorno_presa)
+    return d
 
 
 def _risk_free_mensal() -> pd.Series:
@@ -166,6 +222,75 @@ def _metricas(retornos: pd.Series, rf: pd.Series | None = None) -> dict:
     }
 
 
+DIAS_PARA_MONTAR = 5
+
+
+def _andar_com_o_mercado(alvo: pd.Series, retorno: pd.Series) -> pd.Series:
+    """Os pesos que a carteira TEM no fim do mes, depois de o mercado andar com ela.
+
+    Sem isto o rebalanceamento e de graca. O motor calcula o retorno bruto como MEDIA dos
+    papeis, o que ja supoe voltar a peso igual todo mes -- mas cobrava custo so de quem
+    ENTROU e SAIU da carteira. O papel que dobrou e ficou virava peso maior e era
+    reequilibrado sem pagar nada.
+
+    Achado C do Codex (11/09/2026), reproduzido com dois papeis e um deles dobrando: a
+    equalizacao exige 16,67% de giro unilateral que nao aparecia em lugar nenhum. A
+    diferenca entre 2,25 e 2,50 de riqueza bruta e exatamente a escolha entre rebalancear
+    e nao rebalancear -- as duas sao defensaveis, cobrar a primeira de graca nao e.
+
+    Normaliza pelo bruto para funcionar nas duas pernas: numa carteira so comprada o
+    divisor e 1 + retorno da carteira, que e a conta certa; numa long-short os pesos somam
+    zero e nao existe divisor unico, entao a convencao declarada e manter a exposicao
+    bruta constante.
+    """
+    v = alvo * (1 + retorno.reindex(alvo.index).fillna(0.0))
+    bruto_depois = float(v.abs().sum())
+    if bruto_depois <= 0:
+        return v * 0.0
+    return v * (float(alvo.abs().sum()) / bruto_depois)
+
+
+def _rebalancear(alvo: pd.Series, anterior: pd.Series,
+                 custo_papel: pd.Series, custo_padrao: float) -> tuple[float, float]:
+    """Giro unilateral e custo do mes, cobrando de CADA papel o spread DELE.
+
+    Duas correcoes na mesma conta:
+
+    - o giro deixa de ser "quantos nomes mudaram" e passa a ser quanto peso mudou de
+      fato, incluindo o reequilibrio de quem ficou (achado C);
+    - o custo deixa de ser a MEDIANA da carteira e passa a ser o custo de cada ordem
+      (achado F). A mediana e justamente o numero que esconde o problema: quem entra e
+      sai de uma carteira de small cap e a ponta cara, e a mediana dos 20 papeis
+      mantidos nao sabe disso.
+
+    `custo_roundtrip` e ida e volta; cada ordem paga metade -- meio spread mais a tarifa
+    do seu lado. Para troca pura de nomes esta conta devolve exatamente o que o motor
+    cobrava antes (k/N x custo), o que torna a mudanca uma extensao, nao outra convencao.
+    """
+    idx = alvo.index.union(anterior.index)
+    delta = (alvo.reindex(idx).fillna(0.0) - anterior.reindex(idx).fillna(0.0)).abs()
+    c = custo_papel.reindex(idx).astype(float).fillna(custo_padrao)
+    return float(delta.sum()) / 2.0, float((delta * c).sum()) / 2.0
+
+
+def _capacidade(cap_dia: pd.Series, n_posicoes: int) -> tuple[float, float]:
+    """(gargalo, soma). O que vale para carteira de peso igual e o GARGALO.
+
+    Achado D do Codex (11/09/2026). Somar a capacidade dos papeis responde "quanto o
+    conjunto absorve se eu puder comprar na proporcao da liquidez de cada um" -- que nao e
+    a carteira que este motor simula. Em peso igual cada posicao recebe K/N, e K/N tem que
+    caber no MENOS liquido: K <= N x min(capacidade_dia) x dias. No exemplo sintetico do
+    Codex a soma dava R$50.500 contra R$1.000 do limite real, 50,5x.
+
+    A soma continua sendo devolvida, porque ela e o teto de uma carteira ponderada por
+    liquidez -- estrategia que este projeto pode vir a testar. Mas nao e este numero.
+    """
+    if cap_dia.empty:
+        return 0.0, 0.0
+    gargalo = float(cap_dia.min()) * n_posicoes * DIAS_PARA_MONTAR
+    return gargalo, float(cap_dia.sum()) * DIAS_PARA_MONTAR
+
+
 def rodar(sinal: pd.DataFrame, par: Parametros | None = None, *,
           nome: str = "sem_nome", registrar: bool = True,
           painel: pd.DataFrame | None = None) -> dict:
@@ -181,34 +306,45 @@ def rodar(sinal: pd.DataFrame, par: Parametros | None = None, *,
     if px.empty:
         return {"erro": "painel vazio"}
 
-    d = px.merge(sinal.dropna(subset=["sinal"]), on=["cnpj", "ano_mes"], how="inner")
+    # O filtro de liquidez decide quem ENTRA; o painel inteiro segue como fonte do retorno.
+    elegivel = _elegiveis(px, par)
+    d = elegivel.merge(sinal.dropna(subset=["sinal"]), on=["cnpj", "ano_mes"], how="inner")
     if d.empty:
         return {"erro": "sinal nao casou com o painel"}
 
     # O retorno do mes SEGUINTE de calendario, casado contra o painel inteiro.
-    d = _casar_retorno_futuro(d.sort_values(["cnpj", "ano_mes"]), px)
+    d = _casar_retorno_futuro(d.sort_values(["cnpj", "ano_mes"]), px,
+                              par.retorno_posicao_presa)
     if d.empty:
         return {"erro": "nenhum sinal teve mes seguinte no painel"}
 
-    linhas, carteira_anterior = [], set()
+    # Custo de CADA papel em CADA mes, inclusive o do papel que esta saindo da carteira e
+    # portanto nao esta na selecao deste mes.
+    custos_do_mes = {m: sub.set_index("cnpj")["custo_roundtrip"]
+                     for m, sub in px.groupby("ano_mes", sort=False)}
+
+    linhas = []
+    pesos_anteriores = pd.Series(dtype=float)   # pesos no FIM do mes passado, ja com drift
     for mes, g in d.groupby("ano_mes", sort=True):
         if len(g) < par.n_papeis * 2:
             continue   # cross-section pequena demais para formar carteira e contraparte
         g = g.sort_values("sinal", ascending=False)
         topo = g.head(par.n_papeis)
-        bruto = float(topo["retorno_futuro"].mean())
+        posicoes = topo
+        alvo = pd.Series(1.0 / par.n_papeis, index=topo["cnpj"].to_numpy())
         if par.long_short:
             fundo = g.tail(par.n_papeis)
-            bruto -= float(fundo["retorno_futuro"].mean())
+            posicoes = pd.concat([topo, fundo])
+            alvo = pd.concat([alvo,
+                              pd.Series(-1.0 / par.n_papeis, index=fundo["cnpj"].to_numpy())])
+        retorno = posicoes.set_index("cnpj")["retorno_futuro"]
+        bruto = float((alvo * retorno.reindex(alvo.index)).sum())
 
-        atual = set(topo["ticker"])
-        # Giro: fracao da carteira que mudou. Entrar e sair custa uma ida-e-volta,
-        # dividida entre as duas pontas -- por isso a metade.
-        trocas = len(atual - carteira_anterior)
-        giro = trocas / par.n_papeis if carteira_anterior else 1.0
-        custo_medio = float(topo["custo_roundtrip"].median())
-        custo = giro * custo_medio
-        carteira_anterior = atual
+        custo_papel = custos_do_mes.get(mes, pd.Series(dtype=float))
+        custo_padrao = float(posicoes["custo_roundtrip"].median())
+        giro, custo = _rebalancear(alvo, pesos_anteriores, custo_papel, custo_padrao)
+        pesos_anteriores = _andar_com_o_mercado(alvo, retorno)
+        gargalo, soma = _capacidade(posicoes["capacidade_dia"], len(alvo))
 
         linhas.append({
             # O indice e o mes em que o retorno ACONTECEU, nao o da formacao. O CDI e
@@ -220,8 +356,10 @@ def rodar(sinal: pd.DataFrame, par: Parametros | None = None, *,
             "custo": custo,
             "retorno_liquido": bruto - custo,
             "giro": giro,
-            "capacidade": float(topo["capacidade_dia"].sum()) * 5,  # 5 pregoes para montar
-            "n": len(topo),
+            "capacidade": gargalo,
+            "capacidade_soma": soma,
+            "presas": int(posicoes["posicao_presa"].sum()),
+            "n": len(alvo),
         })
 
     if not linhas:
@@ -236,7 +374,11 @@ def rodar(sinal: pd.DataFrame, par: Parametros | None = None, *,
         "liquido": _metricas(serie["retorno_liquido"], rf),
         "giro_medio": float(serie["giro"].mean()),
         "custo_anual": float(serie["custo"].mean()) * MESES_NO_ANO,
+        # `capacidade_mediana` passa a ser o GARGALO (achado D). Linhas do ledger
+        # anteriores a 14/09/2026 guardam a SOMA e nao sao comparaveis com estas.
         "capacidade_mediana": float(serie["capacidade"].median()),
+        "capacidade_soma_mediana": float(serie["capacidade_soma"].median()),
+        "posicoes_presas": int(serie["presas"].sum()),
         "custo_que_quebra": _custo_que_quebra(serie),
     }
     if registrar:
@@ -350,19 +492,27 @@ def benchmark(par: Parametros | None = None) -> dict:
     px = _painel(par)
     if px.empty:
         return {"erro": "painel vazio"}
-    d = _casar_retorno_futuro(px.sort_values(["cnpj", "ano_mes"]), px)
+    d = _casar_retorno_futuro(_elegiveis(px, par).sort_values(["cnpj", "ano_mes"]), px,
+                              par.retorno_posicao_presa)
+    custos_do_mes = {m: sub.set_index("cnpj")["custo_roundtrip"]
+                     for m, sub in px.groupby("ano_mes", sort=False)}
 
-    linhas, anterior = [], set()
+    linhas = []
+    pesos_anteriores = pd.Series(dtype=float)
     for mes, g in d.groupby("ano_mes", sort=True):
-        atual = set(g["ticker"])
-        giro = len(atual - anterior) / max(len(atual), 1) if anterior else 1.0
-        custo = giro * float(g["custo_roundtrip"].median())
-        anterior = atual
+        alvo = pd.Series(1.0 / len(g), index=g["cnpj"].to_numpy())
+        retorno = g.set_index("cnpj")["retorno_futuro"]
+        bruto = float((alvo * retorno.reindex(alvo.index)).sum())
+        giro, custo = _rebalancear(alvo, pesos_anteriores,
+                                   custos_do_mes.get(mes, pd.Series(dtype=float)),
+                                   float(g["custo_roundtrip"].median()))
+        pesos_anteriores = _andar_com_o_mercado(alvo, retorno)
+        gargalo, soma = _capacidade(g["capacidade_dia"], len(alvo))
         linhas.append({"ano_mes": g["mes_realizacao"].iloc[0], "mes_formacao": mes,
-                       "retorno_bruto": float(g["retorno_futuro"].mean()),
-                       "custo": custo, "retorno_liquido": float(g["retorno_futuro"].mean()) - custo,
-                       "giro": giro, "capacidade": float(g["capacidade_dia"].sum()) * 5,
-                       "n": len(g)})
+                       "retorno_bruto": bruto, "custo": custo,
+                       "retorno_liquido": bruto - custo,
+                       "giro": giro, "capacidade": gargalo, "capacidade_soma": soma,
+                       "presas": int(g["posicao_presa"].sum()), "n": len(g)})
     serie = pd.DataFrame(linhas).set_index("ano_mes")
     rf = _risk_free_mensal()
     return {
@@ -373,6 +523,8 @@ def benchmark(par: Parametros | None = None) -> dict:
         "giro_medio": float(serie["giro"].mean()),
         "custo_anual": float(serie["custo"].mean()) * MESES_NO_ANO,
         "capacidade_mediana": float(serie["capacidade"].median()),
+        "capacidade_soma_mediana": float(serie["capacidade_soma"].median()),
+        "posicoes_presas": int(serie["presas"].sum()),
         "custo_que_quebra": _custo_que_quebra(serie),
     }
 
@@ -394,5 +546,7 @@ def relatorio(resultado: dict) -> str:
         f"    giro medio/mes      {resultado['giro_medio']:.0%}",
         f"    custo anual         {resultado['custo_anual']:.1%}",
         f"    custo que quebra    {resultado['custo_que_quebra']}x",
-        f"    capacidade          R$ {resultado['capacidade_mediana'] / 1e6:.1f} milhoes",
+        f"    capacidade          R$ {resultado['capacidade_mediana'] / 1e6:.2f} milhoes"
+        f"   (soma: R$ {resultado.get('capacidade_soma_mediana', float('nan')) / 1e6:.1f} mi)",
+        f"    posicoes presas     {resultado.get('posicoes_presas', 0)}",
     ])

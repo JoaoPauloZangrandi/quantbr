@@ -74,25 +74,32 @@ como retorno de quatro dígitos (PDGR3 +4.170%, IRBR3 +2.938%, BHIA3 +2.007%). Q
 três linhas em 31.915 carregavam o excesso sobre o CDI inteiro. O detalhe está no
 `DIARIO.md`, entrada de 11/09 13:40, e em `REGISTRO.md` seção 6.
 
-Números atuais, sobre a base corrigida — 200 meses (2010–2026), 20 papéis, líquido de
-custo, filtro de R$500 mil/dia:
+Números atuais, sobre a base corrigida e **com o motor corrigido em 14/09/2026** — 200
+meses (2010–2026), 20 papéis, líquido de custo, filtro de R$500 mil/dia. Reproduzíveis com
+`python -m estrategias.alicerce`:
 
-| | retorno líquido | acima do CDI | Sharpe (vs CDI) | max DD | giro |
-|---|---|---|---|---|---|
-| benchmark equal-weight | +8,5% | **−1,3 p.p.** | **0,06** | −44,1% | 3%/mês |
-| **momento 12-1** | **+12,3%** | **+2,4 p.p.** | **0,21** | −44,0% | 26%/mês |
-| reversão 1 mês | −10,4% | −20,3 p.p. | −0,48 | −91,4% | 80%/mês |
-| armagedom defensivo | +9,1% | −1,2 p.p. | 0,01 | **−28,9%** | 23%/mês |
+| | retorno líquido | acima do CDI | Sharpe (vs CDI) | max DD | giro | capacidade |
+|---|---|---|---|---|---|---|
+| benchmark equal-weight | +6,4% | **−3,4 p.p.** | **−0,03** | −46,5% | 7%/mês | R$ 38 mi |
+| momento 12-1 | +9,5% | −0,4 p.p. | 0,11 | −46,4% | 29%/mês | **R$ 6,9 mi** |
+| reversão 1 mês | −14,3% | −24,2 p.p. | −0,64 | −95,2% | 84%/mês | R$ 6,1 mi |
+| armagedom defensivo | +7,4% | −2,9 p.p. | −0,09 | **−30,9%** | 26%/mês | R$ 6,9 mi |
 
-**A conclusão inverteu.** O null certo já não vence as três famílias: comprar o universo
-líquido em peso igual de 2010 a 2026 rendeu MENOS que o CDI, e o momento é a única das três
-que bate o CDI. O retorno falso estava concentrado em papel ilíquido, que o peso igual
-carrega inteiro e uma carteira de 20 papéis por momento quase não toca.
+**NENHUMA DAS TRÊS BATE O CDI.** Em 11/09 o momento aparecia 2,4 p.p. acima; com os quatro
+achados do Codex corrigidos (custo de rebalanceamento, custo por ordem em vez da mediana,
+capacidade pelo gargalo, seleção que não depende do futuro) ele fica 0,4 p.p. abaixo. O
+detalhe está no `DIARIO.md`, entrada de 14/09.
 
-Isso não promove o momento a achado — 0,21 de Sharpe com 26% de giro mensal, e o ledger já
-tem 34 tentativas registradas. Promove a barra a honesta.
+**Duas coisas que mudaram de significado e não são comparáveis com números antigos:**
 
-**A barra a usar é 0,06.** Qualquer estratégia, ortodoxa ou alternativa, compara com ela.
+- **capacidade** agora é o GARGALO (`N × min(capacidade_dia) × 5 pregões`), não a soma. Os
+  R$ 512 milhões que o momento reportava eram R$ 6,9 milhões. Linhas do ledger anteriores
+  a 14/09/2026 guardam a soma.
+- **giro** agora inclui o reequilíbrio de quem ficou na carteira, não só troca de nomes.
+
+**A barra a usar é −0,03.** Qualquer estratégia, ortodoxa ou alternativa, compara com ela —
+e quem não bater o CDI (9,8% no período) não é estratégia, por melhor que seja o Sharpe
+relativo.
 
 ### As regras de convivência
 

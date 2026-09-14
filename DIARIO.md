@@ -644,3 +644,257 @@ já tem 34 tentativas. Promove a barra a honesta.
 `REGISTRO.md`, `EQUIPE.md`. Warehouse reconstruído: 1.761.350 linhas diárias, 75.422
 mensais. Três trials novos gravados no ledger, marcados "(base limpa 11/09)".
 **Codex: a barra mudou. Use 0,06, não 0,57 nem 0,33.** `EQUIPE.md` atualizado.
+
+### 2026-09-11 18:10 — codex — Entrega da pesquisa aprofundada de capital pequeno
+
+**Pedido atendido:** a pesquisa global aprofundada sobre estratégias alternativas limitadas pelo tamanho das instituições, com prioridade a SSRN, e o comando literal de continuidade "continue", ambos transcritos nas entradas anteriores. Mantida a entrega em Markdown no território knowledge/.
+
+**Entendimento e decisões:** distinguir impedimento contratual, baixa relevância econômica e restrição organizacional. Pequeno capital não implica ausência de concorrência nem alfa. Priorizar auditoria de pequenos eventos em dinheiro, direitos de subscrição e informação verificável em empresas negligenciadas; exigir identificação e cronologia para fluxos; rebaixar compra automática de excluídas de índices. Não implementar novos coletores, motor ou carteira nesta pesquisa.
+
+**Entregas:** knowledge/capital_pequeno/RELATORIO.md (7.136 palavras incluindo referências), AGENDA_TESTES.md (3.256 palavras), FONTES.md, fontes.json, METODO_E_LIMITACOES.md, consultas.json, README.md e evidencias/LEITURAS_CHAVE.md. Link de continuidade acrescentado ao README de small_caps. São 18 famílias na matriz, 58 referências, 58 notas ligadas ao texto, 10 protocolos CP01–CP10 e 98 consultas distintas recuperadas. Dos 58 registros, 23 identificam SSRN no endereço ou publicação; os demais incluem periódicos, autores, instituições e fontes oficiais. Dados e código do mesmo estudo não contam como replicações.
+
+**Acesso e evidência:** oito registros com texto original acessível e seções selecionadas consultadas; 35 resumos; quatro acessos por trechos; oito documentos/catálogos oficiais; três registros de recursos não validados. Não foram lidos integralmente 58 estudos. PDFs não foram arquivados. Falhas de SSRN/NBER e download por conexão reiniciada estão documentadas. Screenshot solicitado não foi efetivamente inspecionado. Os dados/código públicos de direitos foram identificados, não executados.
+
+**Achados que mudaram a prioridade:** condições reais de odd-lot na oferta WEX de 2025; estudo de direitos com preços de fechamento e custo uniforme, insuficiente para provar execução; crítica de Wardlaw à medida de fluxo; contraprovas de venda institucional automática em cisões; cobertura anormal alta como informação positiva; amostra recente de exclusões com resultado relativo desfavorável; dados CVM de recompra, IPE e confidencialidade de carteiras como dependências temporais. Todas as inferências e hipóteses de adaptação à B3 estão separadas dos achados publicados.
+
+**Estado local:** li as atualizações simultâneas de Claude sobre contaminação e correções de grupamentos/calendário. O relatório não usa a barra antiga de 0,57. O novo 0,06 e os 105 testes são relatados por Claude, não reproduzidos pelo Codex nesta rodada. Agenda exige verificar contrato atual de manutenção, drift, custo por ordem, saídas e capacidade antes dos testes econômicos.
+
+**Verificação:** JSONs válidos; IDs e URLs principais sem duplicação; 58 notas correspondem ao catálogo e são citadas; dez fichas distintas; links locais existentes; nenhum identificador interno de ferramenta, caractere de substituição ou espaço final nos novos Markdown. A primeira verificação encontrou a referência S53 sem chamada no corpo; foi acrescentada ao parágrafo sobre o catálogo IPE e a repetição terminou com zero erros. git diff --check sem erros; arquivos novos também verificados diretamente, pois git diff não cobre untracked.
+
+**Limite de atuação:** zero conexões ao warehouse, zero backtests, zero trials, zero ordens e zero mensagens externas pelo Codex nesta rodada. Nenhum commit/push feito pelo Codex; o estado ahead 1 já era trabalho simultâneo existente. Esta entrega fecha a revisão e a especificação de pesquisa, não valida estratégia para alocação.
+
+### 2026-09-14 — codex — Retomada dos testes
+
+**Pedido literal:** "continue testando".
+**Entendimento:** executar os testes possíveis da agenda, começando pela validação do motor e disponibilidade real dos dados. Leitura atual confirma correção do calendário, mas ainda há exclusão por retorno futuro ausente, capacidade por soma e giro por troca de nomes. Vou reproduzir o comportamento atual com casos sintéticos e medir cobertura e perdas de elegibilidade no painel em conexão somente leitura, curta e fechada. Sem escritor ativo registrado. Não escrever outro motor, corrigir infraestrutura de Claude nem promover resultados contaminados. Testes diagnósticos não são trials econômicos; eventuais trials precisam do ledger.
+**Registro de erro:** primeira tentativa de acrescentar esta entrada usou contexto inexistente e falhou sem alterar arquivo; contexto corrigido.
+
+**Atualização durante execução:** o motor foi alterado por trabalho simultâneo após minha leitura inicial. Auditoria repetida com hash estável confirmou calendário, custo/drift, custo das vendas, gargalo e preservação do ativo sem retorno futuro. Duas limitações de contrato (sinal esparso e quantidades constantes) e uma falha de drawdown continuam. As 913 linhas com retorno existente e liquidez futura abaixo do corte medem o risco do filtro ANTIGO, não falha da versão nova. Base: 75.422 linhas, 572 emissores; zero recebimentos posteriores ao mês entre 54.288 linhas contábeis. Contas necessárias a net-nets e tabelas de eventos/fluxos não disponíveis. Mínimo de dez pequenas lucrativas elegíveis em 175 meses permite piloto de cinco nomes.
+**Próxima execução autorizada pelo pedido de testes:** quatro rodadas no motor existente, com pré-registro knowledge/capital_pequeno/rodada_20260914/PRE_REGISTRO.md: desconto patrimonial em pequenas lucrativas, controle aleatório fixo, sensibilidade de custo 2x e benchmark amplo. Vou escrever APENAS no ledger protocol/trials.duckdb pelos métodos existentes e nos artefatos knowledge/. Warehouse só leitura; conexões curtas. Não é N01 anual nem estratégia validada de negligência. Erros operacionais: criação da pasta bloqueada pelo sandbox, repetição autorizada passou; consulta avulsa falhou por quoting PowerShell e foi incorporada ao script, sem perda de dados.
+
+> **[escritor LIBERADO 07:48 / tomado 07:48] 2026-09-14 — claude** — `emissor.construir()` rodando: colunas novas
+> `ultimo_pregao_no_mes`, `negociou_no_fim_do_mes` e `dias_parado_no_fim_do_mes`.
+> Nao escrever no warehouse ate a nota de LIBERADO.
+
+### 2026-09-14 — codex — Quatro testes econômicos concluídos
+
+**Resultado:** CP04-P0 (cinco pequenas lucrativas pelo maior book-to-market, rebalanceamento mensal) foi rejeitado para promoção. Em 175 meses, fevereiro/2012–agosto/2026, bruto 12,97% a.a., líquido 8,09%, CDI 9,76%, Sharpe 0,129, drawdown 53,65%, giro 28,85%/mês. Custo dobrado: líquido 3,36%, drawdown 58,99%. Controle aleatório pré-fixado: 10,65% líquido; uma seed não é teste de significância nem controle de mesmo giro. Benchmark amplo mensal: 5,15% líquido. Não estou rejeitando negligência, N01 anual ou eventos: não foram implementados.
+
+**Custo/capacidade:** piloto custa 4,44% a.a. pela média mensal anualizada; excesso sobre CDI desaparece em 0,7x o custo numa grade de 0,1. Gargalo mediano R$428.520, mínimo R$251.280; soma R$4,21 milhões não é capital investível em pesos iguais. Cinco melhores meses somam 118,94% do ganho logarítmico; 73 emissores, máximo de 74 meses por emissor.
+
+**Verificação independente nesta rodada:** nove diagnósticos sintéticos, seis conformes, duas limitações de contrato (sem manutenção automática de sinal esparso e sem buy-and-hold de quantidades), uma falha: perda de 50% no primeiro mês seguida de onze meses estáveis retorna drawdown zero no motor. Métrica corrigida calculada das séries, sem alterar o motor; coincide nos quatro testes reais. Custos, giro e gargalo corrigidos por trabalho simultâneo foram confirmados. Hash do motor executado d12b1fb44064a1f2f19eac6f832d6135a14b2618de694bf2a7376aa134a60db8.
+
+**Registro e arquivos:** quatro nomes CP04P0_20260914_ (VALOR, ALEATORIO, VALOR_CUSTO2 e BENCHMARK) confirmados uma vez cada no ledger. Série de 175 meses conciliada ao CAGR; bruto idêntico e custo exatamente dobrado na sensibilidade. Pré-registro, resultados, sinais, CSVs e hashes em knowledge/capital_pequeno/rodada_20260914/. Scripts testar_viabilidade.py e rodar_piloto.py chamam o motor existente; nenhuma implementação de carteira paralela. README atualizado. O ledger guarda métricas/definição; CSVs locais conservam as séries.
+
+**Falhas operacionais registradas:** verificação inicial parou antes de carteira por custos ausentes; adendo anterior aos retornos excluiu dez linhas sem custos/capacidade, sem mudar número de papéis/período. Depois, uma execução calculou o primeiro piloto mas falhou ao abrir o ledger por permissão, antes de gravar ou exibir métricas. Repetição autorizada das mesmas quatro configurações concluiu, sem duplicatas. Tentativa de inserir nota de concentração com contexto incompleto falhou sem alteração; corrigida usando o cabeçalho existente.
+
+**Limites e coordenação:** warehouse apenas lido em snapshots curtos; não escrevi nem reconstruí dados. Leitura encerrada antes da análise final. Alterações simultâneas em emissor.py, motor.py e testes são de Claude, não desta entrega. Novas colunas de último pregão anunciadas depois do snapshot não foram usadas. Não há ordens de mercado, mensagens externas, commit ou push do Codex nesta rodada. A próxima dependência material é cadastro de eventos/direitos e dados de negligência; contas de net-nets, recompras e fluxos não estão nas tabelas tratadas examinadas.
+
+### 2026-09-14 — claude — Os quatro achados do Codex fechados, e a barra cai pela quarta vez
+
+**Pedido:** "fechei meu terminal, retome a conversa sobre ai hedge fund", e depois **"quero
+que se aprofunde em todos os itens"** — os seis que eu tinha listado como abertos ao
+retomar: o push, os achados C–F do Codex, a outra metade do achado A, as 24 variações do
+momento medidas na base contaminada, a RLOG3 e o desvio contra o NEFIN.
+
+**O que entendi:** C, D, E, F e a outra metade de A são bugs do MESMO laço mensal do motor.
+Separá-los daria quatro reconstruções da base e quatro barras diferentes, cada uma
+corrigindo um quarto do problema. Corrigi os cinco de uma vez e medi o efeito conjunto
+contra o motor antigo, na mesma base — que é a única comparação que isola motor de dado.
+
+#### As cinco correções, e o que cada uma era
+
+**A (outra metade) — o filtro de liquidez apagava o CAMINHO da posição, não só a entrada.**
+`_painel` filtrava `volume_mediano >= 500 mil` no SQL. O papel que secava no mês seguinte
+sumia do painel e a posição evaporava sem retorno: a carteira ficava, por construção, com a
+parte líquida do que ela mesma tinha comprado. Agora o filtro decide só quem ENTRA
+(`_elegiveis`) e o painel inteiro é a fonte do retorno.
+
+**E — a seleção dependia de o papel existir no futuro.** `_casar_retorno_futuro` fazia
+`dropna(subset=["retorno_futuro"])` ANTES do ranking: o ativo de maior sinal que parava de
+negociar sumia da cross-section e o 21º colocado herdava a vaga. A linha agora fica, com
+`posicao_presa = True` e retorno declarado em `par.retorno_posicao_presa`.
+
+**C — o rebalanceamento era de graça.** O retorno bruto é a MÉDIA dos papéis, o que já supõe
+voltar a peso igual todo mês, mas o custo só era cobrado de quem entrava e saía. Papel que
+dobrou e ficou era reequilibrado sem pagar nada. O motor agora carrega os pesos de um mês
+para o outro, deixa o mercado andar com eles (`_andar_com_o_mercado`) e cobra a diferença.
+
+**F — o custo saía da MEDIANA da carteira**, e a mediana é justamente o número que esconde o
+problema: quem entra e sai é a ponta cara, e os 20 mantidos não sabem disso. Agora cada
+ordem paga metade do `custo_roundtrip` DELA. Para troca pura de nomes a conta nova devolve
+exatamente a antiga (k/N × custo) — é extensão, não outra convenção.
+
+**D — capacidade somada em vez do gargalo.** Em peso igual cada posição recebe K/N, que tem
+que caber no MENOS líquido: K ≤ N × min(capacidade_dia) × dias. A soma responde à pergunta
+de uma carteira ponderada por liquidez, que este motor não simula.
+
+**Testes: 105 → 109.** Os quatro novos (`tests/test_motor_custo_capacidade_selecao.py`)
+reproduzem os números sintéticos do próprio Codex — 16,67% de giro devido, 50,5x de
+capacidade, o papel caro que a mediana não vê. **Verifiquei que eles FALHAM contra o motor
+de ontem**: 4 falharam no `HEAD`, 4 passam agora. O primeiro que escrevi passava nos dois e
+não era armadilha nenhuma — com painel injetado o filtro de liquidez morava no SQL e nunca
+chegava a rodar. Refeito.
+
+**Dois testes de ontem foram reescritos, e isso é o achado E aparecendo:**
+`test_papel_com_lacuna_sai_da_carteira_sem_contaminar_os_outros` travava exatamente o
+comportamento que o Codex apontou como errado. Virou
+`test_papel_com_lacuna_fica_na_carteira_com_hipotese_declarada`, mantendo o que ele
+protegia de verdade: o papel com lacuna não pode herdar o retorno de dois meses adiante.
+
+#### O bug que apareceu ao medir a hipótese nova, e ele era o maior
+
+`retorno_posicao_presa` é arbitragem minha, então medi a sensibilidade: com 0% o benchmark
+ficava −3,86 p.p. do CDI; com −100%, −6,75 p.p. **2,9 pontos dependendo de uma escolha
+minha** — inaceitável. Fui olhar as 78 posições presas uma a uma em vez de calibrar o
+número:
+
+| | posições presas | universo elegível |
+|---|---|---|
+| mediana de pregões no mês da formação | **9** | 21 |
+| com menos de 15 pregões | **68%** | 1,3% |
+
+E 66 das 78 tinham `motivo_saida` preenchido: AMBEV, Souza Cruz, CETIP, Rumo, Smiles, TAM,
+Telemar, AMIL. **Elas não ficaram presas depois de compradas — elas já tinham parado de
+negociar antes da data de formação.** A carteira estava sendo montada em papel que não
+dava para comprar naquele dia.
+
+Isso não se conserta com hipótese, se conserta não comprando. E não é informação do futuro:
+é o que qualquer um veria na tela no dia. Faltava o dado — `emissor_mensal` não guardava o
+último pregão do papel no mês. **Acrescentei `ultimo_pregao_no_mes`,
+`negociou_no_fim_do_mes` e `dias_parado_no_fim_do_mes`** (`emissor.py`), e a elegibilidade
+passou a exigir ter negociado no último pregão do mês. Custa **0,58% das linhas elegíveis**
+(229 de 39.152).
+
+| | antes da trava | depois |
+|---|---|---|
+| posições presas (benchmark) | 78 | **10** |
+| posições presas (momento) | 14 | **3** |
+| sensibilidade do benchmark à hipótese | **2,9 p.p.** | **0,35 p.p.** |
+| sensibilidade do momento | 4,7 p.p. | 1,0 p.p. |
+
+A arbitragem que eu fui obrigado a introduzir deixou de importar. É o resultado que eu
+queria: remover a necessidade da escolha, não calibrar a escolha.
+
+#### A BARRA NOVA — mesma base, motor antigo contra motor corrigido
+
+| | motor de 11/09 | **motor corrigido** |
+|---|---|---|
+| | líq. / s/CDI / Sharpe / capacidade | líq. / s/CDI / Sharpe / capacidade |
+| **benchmark equal-weight** | +8,4% / −1,4 pp / 0,06 / R$ 3.843 mi | **+6,4% / −3,4 pp / −0,03 / R$ 38 mi** |
+| **momento 12-1** | +12,2% / +2,4 pp / 0,21 / R$ 512 mi | **+9,5% / −0,4 pp / 0,11 / R$ 6,9 mi** |
+| reversão 1 mês | −10,7% / −20,6 pp / −0,50 / R$ 408 mi | −14,3% / −24,2 pp / −0,64 / R$ 6,1 mi |
+| armagedom defensivo | +8,9% / −1,3 pp / 0,01 / R$ 621 mi | +7,4% / −2,9 pp / −0,09 / R$ 6,9 mi |
+
+O motor antigo reproduz os números de 11/09 (12,2% e 0,21 contra os 12,3% e 0,21
+registrados; a diferença são dois pregões novos na base), então a comparação é limpa e o
+movimento é todo do motor.
+
+**A leitura, e ela fecha uma porta:** **nenhuma das três famílias bate o CDI.** O momento
+saiu de +2,4 p.p. acima para 0,4 p.p. abaixo. Decomposto no benchmark: o bruto cai 1,3 p.p.
+(caminho da posição e posição presa) e o custo sobe 1,0 p.p. (0,1% → 1,1% ao ano) — o
+rebalanceamento que era de graça é a maior parte disso. **E a capacidade cai 74x** no
+momento: R$ 6,9 milhões, não R$ 512 milhões. Esse número é o que decide se a tese de
+capital pequeno é vantagem ou consolo.
+
+**Criei `estrategias/alicerce.py`** para que a barra tenha um comando que a reproduza
+(`python -m estrategias.alicerce`). Ela mudou quatro vezes em quatro dias sendo produzida
+por script ad hoc refeito de memória; isso acabou.
+
+#### As 24 variações do momento, refeitas
+
+Grade formação 3/6/9/12 × pulo 0/1 × 10/20/40 papéis, na base limpa com o motor corrigido:
+
+| | 11/09 (base contaminada) | **agora** |
+|---|---|---|
+| Sharpe mínimo | 0,37 | **−0,110** |
+| mediana | 0,547 | **0,185** |
+| máximo | 0,64 | **0,338** |
+| benchmark | 0,57 | **−0,03** |
+| batem o benchmark | 11 de 24 | **21 de 24** |
+| **batem o CDI** | — | **15 de 24** |
+
+A leitura de 11/09 ("a mediana perde do benchmark") se inverte — mas o benchmark agora
+perde do CDI, e bater um benchmark que perde do CDI não é resultado. O que NÃO se inverteu:
+**o ponto da literatura (12-1, 20 papéis) continua abaixo da mediana da grade** — 0,105
+contra 0,185. E aparece uma coisa contra a teoria: as variações com **pulo 0** batem as de
+pulo 1 de forma sistemática, que é o oposto do argumento que justifica pular o mês recente.
+Não persegui: são 68 tentativas no ledger e o melhor da grade (9-0 × 10 papéis, Sharpe
+0,338) é exatamente o que o teste múltiplo prevê que apareça de graça.
+
+**Ledger: 68 tentativas** (32 em 10/09, 5 em 11/09, 31 hoje).
+
+#### RLOG3: não era resíduo, era um de 28 — e a CVM publica o gabarito
+
+A RLOG3 tinha ficado de fora como possível grupamento residual (3,88x, abaixo do corte de
+5x, sem corroboração de volume). Fui olhar, e a corroboração falhava por um motivo
+concreto: o detector compara contra a MÉDIA da janela anterior, e a quantidade da RLOG3
+caiu mais do que o fator explica (0,11 contra 0,25 esperado), abaixo do piso de 0,60.
+
+A evidência que decide estava num arquivo que a base **já baixa há semanas e nunca abriu**:
+`fre_cia_aberta_capital_social_desdobramento_AAAA.csv`, dentro do zip do FRE da CVM.
+
+> COSAN LOGISTICA S.A. | `Tipo_Evento = Grupamento` | aprovação 14/03/2016 |
+> 1.460.402.269 → 365.100.567 ações | **razão exatamente 4,000**
+
+A RLOG3 é grupamento 4:1 não ajustado, e carrega **+372% de retorno mensal em junho/2016
+com `teve_evento = False`**, dentro do universo elegível (volume mediano de R$ 2,4 mi).
+
+**E isso é maior que a RLOG3.** O arquivo tem **866 eventos distintos** (Grupamento,
+Desdobramento, Bonificação), 438 empresas, desde 2007, com tipo declarado, data de
+aprovação e quantidade antes e depois — ou seja, o **fator exato**. É o "gabarito de evento
+anunciado" que a pendência nº 2 deste diário dizia faltar.
+
+Cruzei os 634 eventos de grupamento/desdobramento com os saltos não ajustados da base:
+**28 saltos casam com um evento anunciado pela CVM, e NENHUM está marcado `tem_evento`.**
+RENT3 (−65%, desdobramento 3:1 em 2007), TUPY3, LPSB3, TRIS3, TEND3, BIDI4, DEXP3, KEPL3,
+CTNM4, VULC3, LOGN3, ATOM3, BLUT4, RCSL3/4 (cinco vezes), MGEL4, MNPR3, CAMB4, ETER3 —
+cerca de 22 deles dentro da janela de backtest.
+
+**Não construí o coletor.** É fonte de evidência nova, muda o detector e obriga a
+reconstruir painel e emissor — e mudaria a barra pela quinta vez. Fica como decisão do
+João, medida e pronta para ser feita.
+
+**Achado colateral, e é um defeito de base:** `ingest/capital_social.py` descarta a coluna
+**`Data_Autorizacao_Aprovacao`** do arquivo bruto. Cada linha do capital social da CVM é um
+registro DATADO, não um número anual — o FRE de 2017 da COSAN LOG traz capital de
+2014-10-01, 2016-05-10, 2017-03-17 e 2017-09-21. Sem a data, `_razao_de_acoes` faz
+`arg_max(qtd, Versao)` e escolhe **arbitrariamente** entre linhas empatadas na mesma versão.
+Isso acontece em **12,9% dos pares empresa-ano (1.340 de 10.352), com até 49 quantidades
+distintas no pior caso.** A evidência mais forte do detector — `acoes_confirmam`, a única
+que não vem do preço — está apoiada num desempate arbitrário em um oitavo dos casos. Parte
+do que 11/09 atribuiu a "ruído de aumento de capital no mesmo ano" pode ser isto.
+
+#### NEFIN: o ponto a vigiar virou medida, e fecha para o lado bom
+
+O desvio do acumulado que tinha se afastado em 11/09 era artefato da comparação — carteira
+em peso igual contra um fator ponderado por valor. O comentário do módulo dizia que sem
+quantidade de ações não dava para ponderar; isso envelheceu, porque `valor_mercado_classe`
+está na base diária desde a ingestão da CVM. Acrescentei a versão ponderada (peso do pregão
+ANTERIOR, senão a carteira se pondera pelo próprio resultado do dia):
+
+| série | correlação | erro médio | desvio do acumulado |
+|---|---|---|---|
+| cru, peso igual | 0,5381 | 49,6 bps | +846,7 p.p. |
+| retorno total, peso igual | 0,9269 | 42,4 bps | −299,1 p.p. |
+| cru, ponderado por valor | 0,9275 | 14,6 bps | −334,0 p.p. |
+| **retorno total, ponderado por valor** | **0,9924** | **10,1 bps** | **−29,3 p.p.** |
+
+Num acumulado de 820% a base fica a **29 pontos** do NEFIN, com correlação de 0,9924 e erro
+médio de 10 bps. O ponto a vigiar está fechado. (A série ponderada cobre 3.967 pregões dos
+5.324 — valor de mercado exige a contagem da CVM, que começa em 2010.)
+
+**Arquivos:** `estrategias/motor.py`, `estrategias/alicerce.py` (novo), `emissor.py`,
+`master/auditoria_precos.py`, `tests/test_motor_custo_capacidade_selecao.py` (novo),
+`tests/test_motor_calendario.py`, `DIARIO.md`, `REGISTRO.md`, `EQUIPE.md`,
+`estrategias/MORTAS.md`. Warehouse: `emissor_mensal` reconstruído, 75.422 linhas.
+**Codex: a barra mudou de novo. Use −0,03 para o benchmark, não 0,06.**
+
+**O que fica aberto, e agora com tamanho medido:**
+
+1. **O gabarito de evento da CVM** — 866 eventos, 28 contaminações vivas. Decisão do João.
+2. **`Data_Autorizacao_Aprovacao` descartada na ingestão** — 12,9% dos pares empresa-ano com
+   desempate arbitrário. Conserto no coletor, e destrava contagem de ações point-in-time.
+3. **Capacidade de R$ 6,9 milhões** no momento. A tese de capital pequeno agora tem número.
+4. **Pulo 0 bate pulo 1** na grade do momento, contra a teoria. Não investigado.
+5. O push do commit de 11/09 (`d5b150f`) continua sem ser feito.

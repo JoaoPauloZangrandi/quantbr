@@ -35,7 +35,8 @@ def _painel(meses: list[str], retornos: list[float], n: int = 4) -> pd.DataFrame
     } for j, mes in enumerate(meses) for i in range(n)])
 
 
-def _serie_bruta(painel: pd.DataFrame, sinal: pd.DataFrame | None = None) -> dict:
+def _serie_bruta(painel: pd.DataFrame, sinal: pd.DataFrame | None = None,
+                 par: motor.Parametros | None = None) -> dict:
     """Roda o motor e devolve {mes_do_indice: retorno_bruto}, sem DB e sem ledger."""
     if sinal is None:
         sinal = painel[["cnpj", "ano_mes"]].assign(sinal=1.0)
@@ -52,8 +53,8 @@ def _serie_bruta(painel: pd.DataFrame, sinal: pd.DataFrame | None = None) -> dic
     with patch.object(motor, "_risk_free_mensal", return_value=rf_zero), \
          patch.object(motor, "_metricas", side_effect=espiao), \
          patch.object(motor.warehouse, "connect", side_effect=AssertionError("DB proibido")):
-        motor.rodar(sinal, motor.Parametros(n_papeis=2), registrar=False, painel=painel,
-                    nome="TESTE_CALENDARIO")
+        motor.rodar(sinal, par or motor.Parametros(n_papeis=2), registrar=False,
+                    painel=painel, nome="TESTE_CALENDARIO")
     return capturado[0]
 
 
@@ -87,12 +88,27 @@ def test_lacuna_no_painel_nao_forma_mes_em_vez_de_inventar_o_retorno():
     assert "erro" in r, f"formou carteira sem retorno observado: {r}"
 
 
-def test_papel_com_lacuna_sai_da_carteira_sem_contaminar_os_outros():
-    """Um papel perde fevereiro; os demais nao. O mes forma, e ninguem herda marco."""
+def test_papel_com_lacuna_fica_na_carteira_com_hipotese_declarada():
+    """Um papel perde fevereiro; os demais nao. Ele NAO sai, e nao herda marco.
+
+    Este teste travava o oposto ate 11/09/2026 -- "papel com lacuna SAI da carteira" -- e
+    era o achado E do Codex: quem sai antes da selecao faz a carteira depender de o papel
+    existir no futuro, e o 3o colocado herda a vaga do 2o que parou de negociar. A regra
+    nova carrega a posicao com a hipotese escrita em `retorno_posicao_presa`.
+
+    O que continua travado, e e o ponto de A: ele nao pode receber os 30% de marco.
+    """
     px = _painel(["2020-01", "2020-02", "2020-03"], [0.0, 0.02, 0.30], n=6)
     furado = px[~((px["cnpj"] == f"{0:014d}") & (px["ano_mes"] == "2020-02"))]
-    serie = _serie_bruta(furado)
-    assert serie["2020-02"] == 0.02, "papel com lacuna arrastou marco para a carteira"
+
+    # Default: dinheiro preso, sem ganho nem perda. Carteira de 2 = (0,00 + 0,02) / 2.
+    assert _serie_bruta(furado)["2020-02"] == 0.01, "a posicao presa sumiu da carteira"
+    # Hipotese oposta: perda total. Mede a sensibilidade de uma escolha que e do analista.
+    perda = _serie_bruta(furado, par=motor.Parametros(n_papeis=2,
+                                                      retorno_posicao_presa=-1.0))
+    assert abs(perda["2020-02"] - (-0.49)) < 1e-12
+    # Em nenhuma das duas o papel com lacuna pode colher os 30% de marco.
+    assert _serie_bruta(furado)["2020-02"] < 0.30
 
 
 def test_serie_e_indexada_pelo_mes_em_que_o_retorno_aconteceu():

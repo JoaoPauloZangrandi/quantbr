@@ -1602,6 +1602,79 @@ papéis por momento quase não toca — por isso o benchmark era o mais contamin
 Isso não promove o momento a achado (0,21 com 26% de giro mensal, 34 tentativas no ledger);
 promove a barra a honesta.
 
+### Os quatro achados do Codex fechados, em 14/09/2026 — e dois defeitos de base atrás deles
+
+| # | Achado |
+|---|---|
+| 28 | **O filtro de liquidez apagava o CAMINHO da posição, não só a entrada.** `motor._painel` filtrava `volume_mediano >= 500 mil` no SQL, então o papel que secava no mês seguinte sumia do painel e a posição evaporava sem retorno. A carteira ficava, por construção, com a parte líquida do que ela mesma tinha comprado — viés de sobrevivência construído pelo próprio filtro. Corrigido separando `_elegiveis` (quem pode ser comprado) do painel (quem pode ser medido). É a outra metade do achado A do Codex |
+| 29 | **A seleção dependia de o papel existir no futuro.** `_casar_retorno_futuro` descartava a linha sem retorno futuro ANTES do ranking: o ativo de maior sinal que parava de negociar sumia da cross-section e o 21º colocado herdava a vaga. Look-ahead com sinal invertido — o motor só escolhia entre os que sobreviveram. Achado E do Codex |
+| 30 | **O rebalanceamento era de graça.** O retorno bruto é a média dos papéis, o que já supõe voltar a peso igual todo mês, mas o custo só era cobrado de quem entrava e saía. Dois papéis e um deles dobrando exigem **16,67% de giro unilateral** que o motor reportava como zero. Achado C do Codex. No benchmark, o custo anual sobe de **0,1% para 1,1%** quando se cobra o que sempre foi devido |
+| 31 | **O custo saía da MEDIANA da carteira em vez do spread de cada ordem.** A mediana é o número que esconde o problema: quem entra e sai de carteira de small cap é a ponta cara, e os 20 papéis mantidos não sabem disso. Num caso sintético de quatro papéis a 0,20% recebendo um a 10,00%, a mediana cobra 0,05% pela troca e a conta certa cobra **1,275% — 25x**. Achado F do Codex |
+| 32 | **Capacidade somada em vez do gargalo.** Em peso igual cada posição recebe K/N, que tem que caber no MENOS líquido: `K ≤ N × min(capacidade_dia) × dias`. Somar responde à pergunta de uma carteira ponderada por liquidez, que este motor não simula. Medido na base: o momento 12-1 reportava **R$ 512 milhões** de capacidade e comporta **R$ 6,9 milhões — 74x menos**. Achado D do Codex |
+| 33 | **A carteira estava sendo formada em papel que já tinha parado de negociar.** `emissor_mensal` não guardava o último pregão do papel no mês, então o motor só descobria o problema um mês depois, quando o retorno não existia. Das 78 "posições presas", **53 (68%) tinham menos de 15 pregões no mês da formação, contra 1,3% do universo**, e 66 eram empresa saindo da bolsa — AMBEV, Souza Cruz, CETIP, Rumo, Smiles, TAM. Não eram posições presas: eram compras impossíveis. Colunas novas `ultimo_pregao_no_mes`, `negociou_no_fim_do_mes`, `dias_parado_no_fim_do_mes`; custa 0,58% das linhas elegíveis |
+
+**Por que os cinco primeiros foram corrigidos juntos:** são o mesmo laço mensal. Separá-los
+daria cinco reconstruções da base e cinco barras, cada uma corrigindo um quinto do
+problema. O efeito conjunto foi medido contra o motor antigo **na mesma base**, que é a
+única comparação que isola motor de dado — e o motor antigo reproduz os números publicados
+em 11/09, então o movimento inteiro é do motor.
+
+| | motor de 11/09 | motor corrigido |
+|---|---|---|
+| benchmark equal-weight | +8,4% / −1,4 pp / **0,06** / R$ 3.843 mi | **+6,4% / −3,4 pp / −0,03 / R$ 38 mi** |
+| momento 12-1 | +12,2% / +2,4 pp / **0,21** / R$ 512 mi | **+9,5% / −0,4 pp / 0,11 / R$ 6,9 mi** |
+| reversão 1 mês | −10,7% / −20,6 pp / −0,50 | −14,3% / −24,2 pp / −0,64 |
+| armagedom defensivo | +8,9% / −1,3 pp / 0,01 | +7,4% / −2,9 pp / −0,09 |
+
+**Nenhuma das três famílias bate o CDI.** No benchmark, o bruto cai 1,3 p.p. (bugs 28 e 29)
+e o custo sobe 1,0 p.p. (bugs 30 e 31).
+
+**O método que achou o bug 33, e vale mais que o bug:** a correção do 29 obriga a declarar
+o que rendeu a posição sem mês seguinte, e isso é arbitragem. Em vez de calibrar o número,
+medi a sensibilidade — 2,9 p.p. de swing entre 0% e −100% — e fui olhar os 78 casos um a
+um. Eram compras impossíveis. Depois da trava de negociabilidade, as posições presas caem
+de 78 para 10 e **a sensibilidade cai para 0,35 p.p.**: a escolha deixou de importar. Medir
+a sensibilidade de uma hipótese arbitrária é o que revela que ela estava tapando um bug.
+
+### Dois defeitos da ingestão da CVM, achados ao fechar a RLOG3
+
+| # | Achado |
+|---|---|
+| 34 | **A CVM publica o gabarito de evento e a base nunca abriu o arquivo.** `fre_cia_aberta_capital_social_desdobramento_AAAA.csv`, dentro do zip do FRE que já é baixado: **866 eventos distintos** (Grupamento, Desdobramento, Bonificação), 438 empresas, desde 2007, com tipo declarado, data de aprovação e quantidade ANTES e DEPOIS — o fator exato, de fonte independente do preço. É o "gabarito de evento anunciado" da pendência nº 2. Cruzado com os saltos não ajustados: **28 saltos casam com evento anunciado e nenhum está marcado `tem_evento`** — RENT3, TUPY3, LPSB3, TRIS3, TEND3, BIDI4, DEXP3, KEPL3, CTNM4, VULC3, LOGN3, ATOM3, BLUT4, RCSL3/4, MGEL4, MNPR3, CAMB4, ETER3, RLOG3 |
+| 35 | **`ingest/capital_social.py` descarta `Data_Autorizacao_Aprovacao`.** Cada linha do capital social da CVM é um registro DATADO, não um número anual: o FRE de 2017 da COSAN LOG traz capital de 2014-10-01, 2016-05-10, 2017-03-17 e 2017-09-21. Sem a data, `eventos._razao_de_acoes` faz `arg_max(qtd, Versao)` e escolhe **arbitrariamente** entre linhas empatadas na mesma versão. Ocorre em **12,9% dos pares empresa-ano (1.340 de 10.352), com até 49 quantidades distintas no pior caso.** A evidência mais forte do detector — `acoes_confirmam`, a única que não vem do preço — está apoiada num desempate arbitrário em um oitavo dos casos |
+
+**A RLOG3, que era o caso que puxou os dois:** ficou de fora em 11/09 como possível
+grupamento residual (3,88x, abaixo do corte de 5x, sem corroboração de volume). A
+corroboração falhava por motivo concreto — o detector compara contra a MÉDIA da janela
+anterior e a quantidade caiu mais do que o fator explica (0,11 contra 0,25 esperado, abaixo
+do piso de 0,60). O gabarito da CVM decide sem ambiguidade: COSAN LOGISTICA,
+`Tipo_Evento = Grupamento`, aprovação 14/03/2016, 1.460.402.269 → 365.100.567 ações, razão
+**exatamente 4,000**. A RLOG3 carrega **+372% de retorno mensal em junho/2016 com
+`teve_evento = False`**, dentro do universo elegível. Não era resíduo: era um de 28.
+
+O coletor **não** foi construído — é fonte de evidência nova, muda o detector e obriga a
+reconstruir painel e emissor. Fica como decisão do João, com o tamanho medido.
+
+### NEFIN: o ponto a vigiar de 11/09 está fechado
+
+O desvio do acumulado que tinha se afastado era artefato da comparação: carteira em peso
+igual contra um fator ponderado por valor. O comentário de `master/auditoria_precos.py`
+dizia que sem quantidade de ações não dava para ponderar — e envelheceu, porque
+`valor_mercado_classe` está na base diária desde a ingestão da CVM. Com o peso do pregão
+ANTERIOR (usar o do próprio dia ponderaria a carteira pelo resultado dela):
+
+| série | correlação | erro médio | desvio do acumulado |
+|---|---|---|---|
+| cru, peso igual | 0,5381 | 49,6 bps | +846,7 p.p. |
+| retorno total, peso igual | 0,9269 | 42,4 bps | −299,1 p.p. |
+| cru, ponderado por valor | 0,9275 | 14,6 bps | −334,0 p.p. |
+| **retorno total, ponderado por valor** | **0,9924** | **10,1 bps** | **−29,3 p.p.** |
+
+Num acumulado de 820%, a base fica a **29 pontos** da referência externa. O contraste
+cru-vs-ajustado continua sendo medido na série equiponderada, que não depende de
+ponderação; a ponderada existe para o nível. Cobre 3.967 dos 5.324 pregões, porque valor de
+mercado exige a contagem da CVM, que começa em 2010.
+
 ---
 
 ## 7. O que está planejado

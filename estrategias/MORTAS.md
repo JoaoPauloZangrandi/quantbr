@@ -14,13 +14,27 @@ desaparece. O ledger completo de tentativas, com parâmetros, fica em
 
 O **null certo** não é zero, nem o CDI sozinho: é comprar todo o universo líquido em peso
 igual e segurar. Medido em 200 meses (2010–2026), com custo, filtro de R$500 mil/dia de
-liquidez e retorno total:
+liquidez e retorno total, **com o motor corrigido em 14/09/2026**:
 
 | | retorno líquido | acima do CDI | Sharpe (vs CDI) | max drawdown | giro |
 |---|---|---|---|---|---|
-| **benchmark equal-weight** | **+22,4% a.a.** | **+12,5 p.p.** | **0,57** | −36,9% | 4%/mês |
+| **benchmark equal-weight** | **+6,4% a.a.** | **−3,4 p.p.** | **−0,03** | −46,5% | 7%/mês |
 
-Essa é a barra. Qualquer resultado abaixo dela é pior do que não ter feito nada.
+Essa é a barra, e ela tem duas faces: um resultado abaixo dela é pior do que não ter feito
+nada, mas **ela mesma perde do CDI** — o universo líquido em peso igual rendeu menos que
+taxa livre de risco de 2010 a 2026. Bater o benchmark e não bater o CDI não é resultado.
+
+**Este número já foi 0,57 (10/09) e 0,06 (11/09), e os dois estavam errados.** O primeiro
+vinha de grupamentos não ajustados em papel de centavos; o segundo, de um motor que cobrava
+custo de menos e selecionava entre os sobreviventes. O histórico fica registrado de
+propósito: `REGISTRO.md` seção 6, bugs 21 a 33.
+
+> **AVISO SOBRE AS SEÇÕES 1 A 4.** Elas são o registro das rodadas de 10 e 11/09/2026 e
+> foram deixadas como estavam, de propósito — ideia morta se registra com o número que a
+> matou na época. Mas **todos os Sharpes delas comparam com a barra de 0,57 ou 0,55, que
+> está morta**, e foram medidos com o motor anterior a 14/09. Para número atual, seção 5 e
+> `EQUIPE.md`. Nenhuma conclusão de "morreu" se inverteu com a correção; a de "vive" do
+> momento, sim — ele não bate o CDI em nenhuma configuração padrão.
 
 ---
 
@@ -195,6 +209,45 @@ proteção de cauda de verdade. Aluguel por papel exige o arquivo BTB da B3, que
 não tem.
 
 ---
+
+## 5. A grade do momento refeita com o motor corrigido — 14/09/2026
+
+A seção 4.1 media as 24 variações na base contaminada e com o motor que cobrava custo de
+menos, capacidade de mais e selecionava entre os sobreviventes. Refeita (mesma grade:
+formação 3/6/9/12 × pulo 0/1 × 10/20/40 papéis), reproduzível com
+`python -m estrategias.alicerce --momento`:
+
+| | 11/09 (base contaminada) | **14/09 (motor corrigido)** |
+|---|---|---|
+| Sharpe mínimo | 0,37 | **−0,110** |
+| mediana | 0,547 | **0,185** |
+| máximo | 0,64 | **0,338** |
+| benchmark | 0,57 | **−0,03** |
+| batem o benchmark | 11 de 24 | **21 de 24** |
+| **batem o CDI** | — | **15 de 24** |
+
+**A leitura de 4.1 se inverte pela metade, e só pela metade.** "A mediana perde do
+benchmark" deixou de valer — mas o benchmark agora perde do CDI, e bater um benchmark que
+perde do CDI não é resultado. A pergunta certa passa a ser quantas batem o CDI: 15 de 24,
+e a 12-1 × 20 papéis **não** é uma delas (−0,4 p.p.).
+
+**O que NÃO se inverteu:** o ponto que a literatura manda usar continua **abaixo da mediana
+da grade** — Sharpe 0,105 contra 0,185. A conclusão de 4.1 sobre isso segue de pé: escolher
+o melhor de 24 e chamar de resultado é construir o número, não medi-lo. O melhor da grade
+(9-0 × 10 papéis, Sharpe 0,338) é exatamente o que 68 tentativas no ledger preveem que
+apareça de graça.
+
+**Um fato contra a teoria, registrado e não perseguido:** as variações com **pulo 0** batem
+as de pulo 1 de forma sistemática (9-0 × 10: 0,338 contra 9-1 × 10: 0,242; 12-0 × 40: 0,289
+contra 12-1 × 40: 0,257; 6-0 × 40: 0,212 contra 6-1 × 40: 0,180). É o oposto do argumento
+que justifica pular o mês recente — a reversão de curto prazo deveria contaminar o sinal.
+Não investiguei: perseguir isso agora seria a 25ª variação de uma família que não bate o
+CDI em nenhuma configuração padrão.
+
+**E a capacidade mudou de ordem de grandeza.** Todas as 24 ficam entre **R$ 4,2 e R$ 11,9
+milhões** pelo gargalo, contra centenas de milhões que a soma reportava. Carteira de 10
+papéis comporta R$ 4,2 mi; de 40, R$ 11,7 mi. Qualquer leitura de retorno nesta grade tem
+que carregar esse número junto.
 
 ## Nota de método sobre estes três resultados
 

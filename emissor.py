@@ -91,6 +91,13 @@ WITH diario AS (
 por_ticker AS (
     SELECT cnpj, ticker, ano_mes,
            count(*)                                  AS pregoes_no_mes,
+           -- O DIA em que o papel negociou pela ultima vez no mes. Nao e detalhe de
+           -- calendario: a carteira e formada no FECHAMENTO do ultimo pregao do mes, e
+           -- papel que parou de negociar antes disso nao esta a venda naquele instante.
+           -- Sem esta coluna o motor so descobria o problema um mes depois, quando o
+           -- retorno nao existia (achado E do Codex, 11/09/2026 -- e 68% das posicoes
+           -- presas eram isto).
+           max(data)                                 AS ultimo_pregao_no_mes,
            sum(volume)                               AS volume_mes,
            median(volume)                            AS volume_mediano,
            -- CUSTO E CAPACIDADE. E aqui que a tese de "capital pequeno tem vantagem" se
@@ -129,7 +136,8 @@ por_ticker AS (
 -- que o papel simplesmente nao negociou -- que e uma medida de iliquidez por si so, e a
 -- que Lesmond usa. Nao da para ver isso olhando so as linhas que existem.
 calendario AS (
-    SELECT strftime(data, '%Y-%m') AS ano_mes, count(DISTINCT data) AS pregoes_no_mercado
+    SELECT strftime(data, '%Y-%m') AS ano_mes, count(DISTINCT data) AS pregoes_no_mercado,
+           max(data) AS ultimo_pregao_do_mercado
     FROM acoes_diario GROUP BY 1
 ),
 -- A ESCOLHA DA CLASSE, POINT-IN-TIME E ESTAVEL: liquidez dos 12 meses ANTERIORES.
@@ -153,7 +161,7 @@ ranqueado AS (
 ),
 base AS (
     SELECT cnpj, ano_mes, ticker, nome, regime,
-           pregoes_no_mes, classes_no_mes, escolha_sem_historico,
+           pregoes_no_mes, ultimo_pregao_no_mes, classes_no_mes, escolha_sem_historico,
            preco_fim, volume_mes, volume_mediano, valor_mercado_empresa,
            retorno_qtd, retorno_total, teve_evento, teve_provento,
            motivo_saida, retorno_delisting, retorno_delisting_conservador,
@@ -166,7 +174,7 @@ base AS (
     WHERE posicao = 1
 ),
 base_com_calendario AS (
-    SELECT b.*, c.pregoes_no_mercado
+    SELECT b.*, c.pregoes_no_mercado, c.ultimo_pregao_do_mercado
     FROM base b LEFT JOIN calendario c USING (ano_mes)
 )
 """
@@ -218,6 +226,12 @@ SELECT * EXCLUDE (fim_do_mes),
        -- Quanto da para negociar por dia sem virar o preco contra si. Fracao declarada do
        -- volume tipico, nao lei.
        volume_mediano * {teto}                                AS capacidade_dia,
+       -- NEGOCIAVEL NO INSTANTE DA FORMACAO. A carteira se forma no fechamento do
+       -- ultimo pregao do mes; se o papel ja estava parado, ele nao entra -- e isso NAO e
+       -- informacao do futuro, e o que qualquer um veria na tela naquele dia.
+       ultimo_pregao_no_mes = ultimo_pregao_do_mercado        AS negociou_no_fim_do_mes,
+       datediff('day', ultimo_pregao_no_mes, ultimo_pregao_do_mercado)
+                                                              AS dias_parado_no_fim_do_mes,
        -- Giro: volume do mes sobre o valor de mercado da empresa.
        volume_mes / nullif(valor_mercado_empresa, 0)          AS turnover_mes,
        -- Dias em que o papel NAO negociou, sobre os pregoes que o mercado teve. Iliquidez

@@ -66,7 +66,12 @@ def _carteira_mensal() -> pd.DataFrame:
                            ROWS BETWEEN {JANELA_LIQUIDEZ} PRECEDING AND 1 PRECEDING
                        ) AS liquidez_passada,
                        lag(fechamento) OVER (PARTITION BY ticker ORDER BY data) AS fech_ant,
-                       lag(data)       OVER (PARTITION BY ticker ORDER BY data) AS data_ant
+                       lag(data)       OVER (PARTITION BY ticker ORDER BY data) AS data_ant,
+                       -- Valor de mercado do pregao ANTERIOR: o peso tem que ser o de
+                       -- antes do retorno que ele vai ponderar, senao a carteira se
+                       -- pondera pelo proprio resultado do dia.
+                       lag(valor_mercado_classe) OVER (PARTITION BY ticker ORDER BY data)
+                         AS peso_valor
                 FROM acoes_diario
                 WHERE classe IN ('on','pn')
             ),
@@ -84,7 +89,7 @@ def _carteira_mensal() -> pd.DataFrame:
                 ) AS posicao
                 FROM elegivel
             )
-            SELECT data, ticker, retorno_cru, retorno_qtd, retorno_total
+            SELECT data, ticker, retorno_cru, retorno_qtd, retorno_total, peso_valor
             FROM ranqueado
             WHERE posicao <= {TOP_LIQUIDEZ}
         """).df()
@@ -106,10 +111,29 @@ def relatorio() -> None:
     carteira = _carteira_mensal()
     carteira["data"] = pd.to_datetime(carteira["data"])
 
-    # Equiponderada: sem numero de acoes em circulacao nao da para ponderar por valor de
-    # mercado. Isso custa um pouco de correlacao contra o fator (que e ponderado por
-    # valor), mas nao afeta o CONTRASTE entre cru e ajustado, que e o objeto do teste.
-    diario = carteira.groupby("data")[["retorno_cru", "retorno_qtd", "retorno_total"]].mean()
+    # DUAS PONDERACOES, e a segunda foi acrescentada em 14/09/2026 por um motivo
+    # especifico. O comentario que estava aqui dizia que sem quantidade de acoes nao dava
+    # para ponderar por valor -- e isso envelheceu: a ingestao do capital social da CVM
+    # trouxe `valor_mercado_classe` para a base diaria.
+    #
+    # Por que importa. Em 11/09/2026 o desvio do ACUMULADO contra o NEFIN se afastou
+    # depois da correcao dos grupamentos, e ficou registrado como "ponto a vigiar" porque
+    # as duas series nao eram comparaveis em NIVEL: peso igual contra um fator ponderado
+    # por valor. Isso nao e detalhe -- peso igual carrega a cauda pequena inteira, que e
+    # exatamente onde vive o retorno que a correcao removeu. Sem a versao ponderada nao
+    # da para dizer se o desvio e defeito nosso ou artefato da comparacao.
+    #
+    # A equiponderada CONTINUA sendo a serie do contraste cru-vs-ajustado, que nao depende
+    # de ponderacao. A ponderada existe para o nivel.
+    colunas = ["retorno_cru", "retorno_qtd", "retorno_total"]
+    diario = carteira.groupby("data")[colunas].mean()
+    c = carteira.dropna(subset=["peso_valor"])
+    c = c[c["peso_valor"] > 0]
+    ponderada = (c.groupby("data")
+                  .apply(lambda g: pd.Series(
+                      {f"{col}_vw": float(np.average(g[col], weights=g["peso_valor"]))
+                       for col in colunas}), include_groups=False))
+    diario = diario.join(ponderada)
     n_ativos = carteira.groupby("data").size().rename("n")
 
     ref = _referencia().set_index("data")["retorno_mercado"]
@@ -148,17 +172,24 @@ def relatorio() -> None:
     linhas = []
     for col, rotulo in (("retorno_cru", "cru (sem ajuste)"),
                         ("retorno_qtd", "ajustado por quantidade"),
-                        ("retorno_total", "retorno total")):
-        s = j[col]
-        corr = s.corr(j["retorno_mercado"])
-        dif = s - j["retorno_mercado"]
+                        ("retorno_total", "retorno total"),
+                        ("retorno_cru_vw", "cru, ponderado por valor"),
+                        ("retorno_qtd_vw", "ajustado, ponderado por valor"),
+                        ("retorno_total_vw", "retorno total, ponderado por valor")):
+        if col not in j.columns:
+            continue
+        s = j[col].dropna()
+        mercado = j["retorno_mercado"].reindex(s.index)
+        corr = s.corr(mercado)
+        dif = s - mercado
         # Retorno acumulado do periodo, comparavel com o do fator.
         acum = float(np.expm1(np.log1p(s).sum()))
         linhas.append({
             "serie": rotulo,
             "correlacao": round(corr, 4),
             "erro_abs_medio_bps": round(1e4 * dif.abs().mean(), 1),
-            "desvio_do_acum_pp": round(100 * (acum - float(np.expm1(np.log1p(j['retorno_mercado']).sum()))), 1),
+            "pregoes": len(s),
+            "desvio_do_acum_pp": round(100 * (acum - float(np.expm1(np.log1p(mercado).sum()))), 1),
         })
     ref_acum = float(np.expm1(np.log1p(j["retorno_mercado"]).sum()))
     print(f"\nretorno acumulado do fator NEFIN no periodo: {100*ref_acum:,.0f}%\n")
