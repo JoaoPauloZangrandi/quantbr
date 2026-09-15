@@ -248,3 +248,101 @@ def test_sem_irma_aceita_nada_e_herdado():
     ])
     saida = herdar_entre_classes(cand)
     assert not saida["fator_herdado"].any()
+
+# ---------------------------------------------------------------------------
+# 15/09/2026: o gabarito de evento da CVM, e a janela que separa ato de crash.
+# ---------------------------------------------------------------------------
+# A CVM publica o evento ANUNCIADO (tipo, data de aprovacao, quantidade antes e depois).
+# Entra como quarta evidencia, e e a unica que nao precisa que o preco prove nada -- ver
+# ingest/eventos_cvm.py. O que ela NAO traz e a data ex, e e dai que vem o risco: casar um
+# ato com o pregao errado apaga um retorno verdadeiro.
+
+from master.eventos import (JANELA_GABARITO_ANTES, JANELA_GABARITO_DEPOIS,
+                            TOLERANCIA_GABARITO, casar_com_contagem, casar_com_gabarito)
+
+
+def _salto(ticker: str, data: str, razao: float, fator: float = 1.0) -> pd.DataFrame:
+    return pd.DataFrame([{"ticker": ticker, "data": pd.Timestamp(data),
+                          "razao_preco": razao, "fator_sugerido": fator}])
+
+
+def test_o_gabarito_resgata_grupamento_de_papel_de_centavos():
+    """O caso que obrigou a construir o coletor: RLOG3 em 10/06/2016.
+
+    Razao de preco 0,258 -- grupamento 4:1 obvio --, mas o papel e cotado em centavos e a
+    quantidade nao corroborou, entao ficava em 'preco_de_centavos' e NAO era ajustado,
+    deixando +372% de retorno mensal falso num papel dentro do universo eligivel.
+
+    A CVM diz, sem ambiguidade: COSAN LOGISTICA, Grupamento aprovado em 14/03/2016,
+    1.460.402.269 -> 365.100.567 acoes. Razao exatamente 4,000.
+    """
+    gab = pd.DataFrame([{"ticker": "RLOG3", "tipo_gabarito": "Grupamento",
+                         "data_aprovacao": pd.Timestamp("2016-03-14"),
+                         "fator_gabarito": 0.25}])
+    casado = casar_com_gabarito(_salto("RLOG3", "2016-06-10", 0.258065), gab)
+    assert len(casado) == 1
+    assert casado.iloc[0]["fator_gabarito"] == pytest.approx(0.25)
+    assert casado.iloc[0]["dias_da_aprovacao"] == 88
+
+
+def test_o_gabarito_nao_alcanca_o_ato_do_ano_anterior():
+    """A trava da janela, e ela veio de um caso real: a RCSL3 agrupou em 2022 E em 2023.
+
+    Com janela de um ano, o salto de 10/07/2023 casa com o ato de 24/06/2022 -- evento
+    errado, fator errado, e o retorno do papel destruido duas vezes. 120 dias pegam 263
+    dos 283 casamentos observados na base e cortam exatamente essa cauda.
+    """
+    gab = pd.DataFrame([{"ticker": "RCSL3", "tipo_gabarito": "Grupamento",
+                         "data_aprovacao": pd.Timestamp("2022-06-24"),
+                         "fator_gabarito": 0.5}])
+    assert casar_com_gabarito(_salto("RCSL3", "2023-07-10", 0.521875), gab).empty
+    # o mesmo ato, no pregao certo, continua casando
+    assert len(casar_com_gabarito(_salto("RCSL3", "2022-06-27", 0.521490), gab)) == 1
+
+
+def test_o_gabarito_nao_confirma_crash_sem_ato_anunciado():
+    """PETR4 em 09/03/2020: -29% no crash da COVID. Nao ha ato nenhum na CVM, entao nao
+    ha o que confirmar. Esta e a unica defesa que importa: o gabarito so fala onde a
+    empresa declarou alguma coisa."""
+    gab = pd.DataFrame([{"ticker": "PETR4", "tipo_gabarito": "Desdobramento",
+                         "data_aprovacao": pd.Timestamp("2008-04-28"),
+                         "fator_gabarito": 2.0}])
+    assert casar_com_gabarito(_salto("PETR4", "2020-03-09", 1.422430), gab).empty
+
+
+def test_fator_anunciado_incompativel_com_o_preco_nao_casa():
+    """Ato anunciado na janela certa, mas de tamanho que o preco nao viu. Um grupamento
+    10:1 nao explica uma queda de 30%."""
+    gab = pd.DataFrame([{"ticker": "XXXX3", "tipo_gabarito": "Grupamento",
+                         "data_aprovacao": pd.Timestamp("2020-01-10"),
+                         "fator_gabarito": 0.1}])
+    assert casar_com_gabarito(_salto("XXXX3", "2020-01-20", 1.43), gab).empty
+
+
+def test_a_janela_do_gabarito_e_assimetrica():
+    """Ato aprovado DEPOIS do pregao nao pode explicar o pregao. A folga para tras existe
+    so para a ratificacao registrada apos a execucao, e por isso e curta."""
+    assert JANELA_GABARITO_ANTES < JANELA_GABARITO_DEPOIS
+    assert TOLERANCIA_GABARITO < 0.15
+
+
+def test_emissao_posterior_nao_pode_confirmar_um_crash():
+    """Bug real que a contagem DATADA de acoes criou e a janela assimetrica matou.
+
+    A TELB3 caiu 27% em 12/03/2020 (COVID), razao de preco 1,377. A Telebras emitiu +36,8%
+    de acoes em 14/04/2020 -- um mes DEPOIS. Com janela simetrica, essa emissao confirmava
+    o crash como desdobramento 4:3 e um dos piores pregoes da historia desaparecia da
+    serie ajustada. Mesmo padrao em CVCB3 e IRBR3 no mesmo 12/03/2020.
+    """
+    acoes = pd.DataFrame([{"ticker": "TELB3", "data_acoes": pd.Timestamp("2020-04-14"),
+                           "razao_acoes": 1.36809}])
+    assert casar_com_contagem(_salto("TELB3", "2020-03-12", 1.3769, 4 / 3), acoes).empty
+
+
+def test_a_contagem_confirma_quando_o_ato_vem_antes():
+    """A mesma evidencia, na ordem que o mundo tem: aprovacao primeiro, pregao depois."""
+    acoes = pd.DataFrame([{"ticker": "AAAA3", "data_acoes": pd.Timestamp("2020-03-02"),
+                           "razao_acoes": 4.0}])
+    casado = casar_com_contagem(_salto("AAAA3", "2020-03-12", 4.05, 4.0), acoes)
+    assert len(casado) == 1
+    assert casado.iloc[0]["razao_acoes"] == pytest.approx(4.0)

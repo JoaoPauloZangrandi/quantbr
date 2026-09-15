@@ -120,6 +120,52 @@ FATOR_GRUPAMENTO_INEQUIVOCO = 5.0
 # +-10% encostam sem se sobrepor. E nao afrouxa nada do lado da queda, onde mora o crash.
 TOLERANCIA_GRUPAMENTO_EXTREMO = 0.10
 
+# ---------------------------------------------------------------------------
+# GABARITO DA CVM -- a quarta evidencia, e a unica que nao precisa do preco.
+# ---------------------------------------------------------------------------
+# A CVM publica o evento anunciado: tipo, data de APROVACAO e quantidade de acoes antes e
+# depois (ver ingest/eventos_cvm.py). O que ela NAO publica e a data ex da B3, e por isso
+# o gabarito nao cria evento -- ele confirma um salto que o preco ja apontou e corrige o
+# FATOR, que e onde o detector por preco erra mais.
+#
+# A JANELA E MEDIDA, NAO ARBITRADA. Cruzando os 9.631 saltos de preco da base com os 635
+# grupamentos/desdobramentos anunciados (15/09/2026), 283 pares casam em fator. A distancia
+# entre aprovacao e data ex distribui assim:
+#
+#   antes da aprovacao (ate -10 dias)    5     a ratificacao vem depois do ato
+#   0 a 7 dias                         153     o caso tipico: aprova e executa na semana
+#   8 a 30 dias                         11
+#   31 a 60 dias                        93     a segunda moda: AGE e ex um mes depois
+#   61 a 120 dias                       11
+#   acima de 120 dias                   20
+#
+# O corte em 120 dias pega 263 dos 283 e deixa de fora a cauda onde o risco muda de
+# natureza: a RCSL3 fez grupamentos em 2022 E em 2023, e com janela de um ano o salto de
+# 10/07/2023 casa com o ato de 24/06/2022 -- o evento errado, com o fator errado. Quem
+# fica de fora nao perde nada: continua valendo a deteccao por preco, como antes.
+JANELA_GABARITO_ANTES = 10
+JANELA_GABARITO_DEPOIS = 120
+# Tolerancia para dizer que o salto de preco e o evento anunciado. Mais larga que a do
+# preco puro (o dia ex tem mercado, e a razao observada nunca bate exato) e mais estreita
+# que a distancia entre fatores vizinhos plausiveis -- 1/9 e 1/10 distam 11%, entao 12%
+# ainda separa um do outro quando a fonte diz qual dos dois e.
+TOLERANCIA_GABARITO = 0.12
+# A contagem DATADA de acoes (`_razao_de_acoes`) usa a MESMA janela, e o motivo e o mesmo:
+# as duas datas sao data de APROVACAO na CVM, nao data ex da B3.
+#
+# E aqui a assimetria nao e detalhe, e a trava. Uma variacao de quantidade datada DEPOIS do
+# pregao candidato nao pode explica-lo -- e, pior, e justamente a forma como um crash vira
+# "evento": a TELB3 caiu 27% em 12/03/2020 (COVID) e a Telebras emitiu +36,8% de acoes em
+# 14/04/2020. Com janela simetrica de 200 dias, essa emissao CONFIRMAVA o crash como
+# desdobramento 4:3, e um dos piores pregoes da historia sumia da serie. Mesmo padrao em
+# LPSB3 (16/03/2020), TRIS3 (18/03/2020) e FRAS3.
+#
+# Medido sobre os 413 eventos que o preco prova sozinho (razao extrema, erro < 1%): a
+# janela [-10, +120] confirma 20 deles e alcanca 32 candidatos duvidosos; abrir para
+# [-200, +200] ganha 3 eventos certos e 18 duvidosos. A troca nao compensa.
+JANELA_ACOES_ANTES = JANELA_GABARITO_ANTES
+JANELA_ACOES_DEPOIS = JANELA_GABARITO_DEPOIS
+
 
 @dataclass(frozen=True)
 class Parametros:
@@ -129,6 +175,7 @@ class Parametros:
     denominador_maximo: int = DENOMINADOR_MAXIMO
     razao_so_inteira: float = RAZAO_SO_INTEIRA
     tolerancia_acoes: float = TOLERANCIA_ACOES
+    tolerancia_gabarito: float = TOLERANCIA_GABARITO
     tolerancia_com_acoes: float = TOLERANCIA_COM_ACOES
     janela: int = JANELA_QUANTIDADE
     preco_minimo: float = PRECO_MINIMO_CONFIAVEL
@@ -171,7 +218,7 @@ def fracao_mais_proxima(x: float, denominador_maximo: int,
 
 
 def _razao_de_acoes(con) -> pd.DataFrame:
-    """Variacao ano a ano da quantidade de acoes, por ticker, a partir do FRE da CVM.
+    """Variacao DATADA da quantidade de acoes, por ticker, a partir do FRE da CVM.
 
     A ideia e a mais simples que existe em evento de quantidade e vale a pena escrever:
     desdobramento nao cria valor, so reparte. Se o numero de acoes multiplica por 8, o
@@ -180,41 +227,111 @@ def _razao_de_acoes(con) -> pd.DataFrame:
     que atrapalham o preco: o tick de R$0,01 em papel de centavos e o movimento do proprio
     dia ex.
 
-    Limite honesto: o FRE e ANUAL, entao esta razao mistura o evento com emissao, recompra
-    e conversao do mesmo ano, e nao data o evento. Serve para CONFIRMAR um candidato que o
-    preco ja apontou -- nunca para criar um evento sozinha.
+    ATE 14/09/2026 ESTA FUNCAO AGREGAVA POR ANO, E O ANO ERA UMA INVENCAO NOSSA.
 
-    A janela e de dois anos (o do evento e o seguinte) porque a data de referencia do FRE
-    nao coincide com a data ex, e um evento de dezembro aparece no formulario do ano
-    seguinte.
+    Cada linha do capital social da CVM e um registro DATADO (`Data_Autorizacao_Aprovacao`:
+    a assembleia que aprovou aquele capital), e o FRE traz o HISTORICO, nao um numero por
+    ano. O coletor descartava a data, e aqui se fazia `arg_max(qtd, Versao)` -- que diante
+    de varias linhas empatadas na mesma versao escolhia ARBITRARIAMENTE. Medido:
+    **12,9% dos pares empresa-ano tinham mais de uma quantidade distinta, com ate 49
+    valores no pior caso.** A evidencia mais forte do detector, a unica que nao vem do
+    preco, estava apoiada num desempate arbitrario em um oitavo dos casos.
+
+    Com a data, a mesma fonte vira uma serie point-in-time: uma quantidade por
+    (CNPJ, data de aprovacao), e a razao entre registros consecutivos DATADA pelo segundo
+    deles. A ambiguidade residual cai de 13,0% para 4,4% dos grupos, e o pior caso de 49
+    para 4 quantidades -- o que sobra e a mesma aprovacao declarada em versoes diferentes,
+    e ai `arg_max` pela recencia do formulario e desempate com criterio, nao sorteio.
+
+    Limite que continua de pe: a razao ainda mistura o evento com emissao, recompra e
+    conversao aprovadas na MESMA data. Serve para CONFIRMAR um candidato que o preco ja
+    apontou -- nunca para criar um evento sozinha.
     """
+    vazio = pd.DataFrame(columns=["ticker", "data_acoes", "razao_acoes"])
     if not (warehouse.table_exists(con, "cvm_capital_social")
             and warehouse.table_exists(con, "master_ticker")):
-        return pd.DataFrame(columns=["ticker", "ano", "razao_acoes"])
+        return vazio
+    colunas = {c[0] for c in con.execute("DESCRIBE cvm_capital_social").fetchall()}
+    if "Data_Autorizacao_Aprovacao" not in colunas:
+        # Base antiga, coletada antes de 15/09/2026. Sem a data nao ha serie datada, e
+        # inventar uma seria pior do que nao ter: melhor a evidencia faltar e o detector
+        # cair nas outras tres do que confirmar evento com data errada.
+        return vazio
     return con.execute("""
-        WITH a AS (
+        WITH bruto AS (
             SELECT lpad(regexp_replace(CNPJ_Companhia, '[^0-9]', '', 'g'), 14, '0') AS cnpj,
-                   ano_fre,
-                   arg_max(Quantidade_Total_Acoes, Versao) AS qtd
+                   CAST(Data_Autorizacao_Aprovacao AS DATE) AS data_acoes,
+                   Quantidade_Total_Acoes AS qtd,
+                   ano_fre * 1000 + CAST(Versao AS INTEGER) AS recencia
             FROM cvm_capital_social
             WHERE Quantidade_Total_Acoes > 0
-            GROUP BY 1, 2
+              AND Data_Autorizacao_Aprovacao IS NOT NULL
+        ),
+        pit AS (
+            SELECT cnpj, data_acoes, arg_max(qtd, recencia) AS qtd
+            FROM bruto GROUP BY 1, 2
         ),
         r AS (
-            SELECT cnpj, ano_fre,
-                   qtd / nullif(lag(qtd) OVER (PARTITION BY cnpj ORDER BY ano_fre), 0)
+            SELECT cnpj, data_acoes,
+                   qtd / nullif(lag(qtd) OVER (PARTITION BY cnpj ORDER BY data_acoes), 0)
                      AS razao_acoes
-            FROM a
+            FROM pit
         ),
         t AS (
             SELECT DISTINCT ticker,
                    lpad(regexp_replace(cnpj, '[^0-9]', '', 'g'), 14, '0') AS cnpj
             FROM master_ticker WHERE cnpj IS NOT NULL
         )
-        SELECT t.ticker, r.ano_fre AS ano, r.razao_acoes
+        SELECT t.ticker, r.data_acoes, r.razao_acoes
         FROM r JOIN t USING (cnpj)
         WHERE r.razao_acoes IS NOT NULL
     """).df()
+
+
+def _gabarito_cvm(con) -> pd.DataFrame:
+    """O evento ANUNCIADO, por ticker: tipo declarado, data de aprovacao e fator exato.
+
+    Vem de `ingest/eventos_cvm.py` (ver o cabecalho de la para a fonte). E a unica
+    evidencia do detector que nao precisa que o preco prove nada: a CVM diz que houve
+    grupamento, quando foi aprovado e quantas acoes existiam antes e depois.
+
+    O fator sai POR CLASSE quando a classe existe. Importa porque o painel e por ticker:
+    um ato que agrupa a ON e converte a PN tem fator total diferente do fator que o preco
+    da ON viu. Sufixo 3 usa a contagem de ordinarias, 4 a 8 a de preferenciais, e unit
+    (11) cai no total, que e o mais proximo do que ela representa.
+
+    Duas linhas de defesa contra dado sujo da propria CVM:
+      - `fator_total IS NOT NULL` corta registro com quantidade zerada antes ou depois;
+      - `year(data_aprovacao) <= ano_fre` corta a data impossivel -- um evento nao pode ser
+        aprovado DEPOIS do formulario que o declara. Tira exatamente uma linha das 866: a
+        VIVER INCORPORADORA com aprovacao em 2077-03-08 (grupamento 3:1, provavelmente
+        2017). Nao e conserto: o dado fica na tabela como veio, e so nao e usado.
+    """
+    vazio = pd.DataFrame(columns=["ticker", "tipo_gabarito", "data_aprovacao",
+                                  "fator_gabarito"])
+    if not (warehouse.table_exists(con, "cvm_eventos_anunciados")
+            and warehouse.table_exists(con, "master_ticker")):
+        return vazio
+    return con.execute("""
+        WITH t AS (
+            SELECT DISTINCT ticker,
+                   lpad(regexp_replace(cnpj, '[^0-9]', '', 'g'), 14, '0') AS cnpj
+            FROM master_ticker WHERE cnpj IS NOT NULL
+        ),
+        e AS (
+            SELECT cnpj, tipo_evento, CAST(data_aprovacao AS DATE) AS data_aprovacao,
+                   fator_total, fator_on, fator_pn
+            FROM cvm_eventos_anunciados
+            WHERE fator_total IS NOT NULL
+              AND data_aprovacao IS NOT NULL
+              AND year(data_aprovacao) <= ano_fre
+        )
+        SELECT t.ticker, e.tipo_evento AS tipo_gabarito, e.data_aprovacao,
+               CASE WHEN regexp_matches(t.ticker, '3$')    THEN coalesce(e.fator_on, e.fator_total)
+                    WHEN regexp_matches(t.ticker, '[4-8]$') THEN coalesce(e.fator_pn, e.fator_total)
+                    ELSE e.fator_total END AS fator_gabarito
+        FROM e JOIN t USING (cnpj)
+    """).df().dropna(subset=["fator_gabarito"])
 
 
 def _serie_por_ticker(con) -> pd.DataFrame:
@@ -246,6 +363,74 @@ def _serie_por_ticker(con) -> pd.DataFrame:
           AND fator_cotacao > 0
         ORDER BY ticker, data
     """).df()
+
+
+def casar_com_gabarito(cand: pd.DataFrame, gabarito: pd.DataFrame,
+                       *, antes: int = JANELA_GABARITO_ANTES,
+                       depois: int = JANELA_GABARITO_DEPOIS,
+                       tolerancia: float = TOLERANCIA_GABARITO) -> pd.DataFrame:
+    """Casa cada salto de preco com o evento ANUNCIADO que o explica, se houver.
+
+    Duas condicoes, e as duas sao necessarias:
+      - o fator anunciado explica a razao de preco observada dentro de `tolerancia`;
+      - a data ex cai na janela [aprovacao - antes, aprovacao + depois].
+
+    A janela nao e simetrica porque o mundo nao e: o ato e aprovado e DEPOIS executado. Os
+    poucos dias para tras cobrem a ratificacao registrada apos a execucao.
+
+    Devolve um frame indexado pelo indice de `cand`, so com as linhas casadas.
+    """
+    vazio = pd.DataFrame(columns=["fator_gabarito", "tipo_gabarito", "dias_da_aprovacao",
+                                  "erro_gabarito"])
+    if cand.empty or gabarito is None or gabarito.empty:
+        return vazio
+    casado = cand[["ticker", "data", "razao_preco"]].reset_index().merge(
+        gabarito, on="ticker", how="inner")
+    if casado.empty:
+        return vazio
+    casado["dias_da_aprovacao"] = (
+        pd.to_datetime(casado["data"]) - pd.to_datetime(casado["data_aprovacao"])).dt.days
+    casado["erro_gabarito"] = (casado["razao_preco"] / casado["fator_gabarito"] - 1).abs()
+    casado = casado[casado["dias_da_aprovacao"].between(-antes, depois)
+                    & (casado["erro_gabarito"] <= tolerancia)]
+    if casado.empty:
+        return vazio
+    # Uma empresa pode ter mais de um ato na janela (a Recrusul tem). Fica o que explica
+    # melhor o salto observado, e o desempate seguinte e o mais proximo no tempo -- nunca
+    # o maior fator, que premiaria o exagero.
+    return (casado.sort_values(["erro_gabarito", "dias_da_aprovacao"])
+                  .drop_duplicates("index", keep="first")
+                  .set_index("index"))
+
+
+def casar_com_contagem(cand: pd.DataFrame, acoes: pd.DataFrame,
+                       *, antes: int = JANELA_ACOES_ANTES,
+                       depois: int = JANELA_ACOES_DEPOIS) -> pd.DataFrame:
+    """Casa cada salto de preco com a variacao DATADA da quantidade de acoes da CVM.
+
+    A janela agora e de DIAS, nao de anos: a contagem virou uma serie point-in-time (ver
+    `_razao_de_acoes`), entao a pergunta deixou de ser "houve variacao compativel em algum
+    momento do ano?" e virou "houve variacao compativel perto deste pregao?".
+
+    Dentro da janela fica a razao MAIS PROXIMA do fator sugerido. A fonte nao data a data
+    ex, entao ela confirma um candidato que o preco ja apontou -- nunca cria evento
+    sozinha, e por isso escolher a mais proxima nao e escolher o que da certo.
+    """
+    vazio = pd.DataFrame(columns=["razao_acoes", "erro_acoes"])
+    if cand.empty or acoes is None or acoes.empty:
+        return vazio
+    casado = cand[["ticker", "data", "fator_sugerido"]].reset_index().merge(
+        acoes, on="ticker", how="inner")
+    if casado.empty:
+        return vazio
+    dias = (pd.to_datetime(casado["data"]) - pd.to_datetime(casado["data_acoes"])).dt.days
+    casado = casado[dias.between(-antes, depois)].copy()
+    if casado.empty:
+        return vazio
+    casado["erro_acoes"] = (casado["razao_acoes"] / casado["fator_sugerido"] - 1).abs()
+    return (casado.sort_values("erro_acoes")
+                  .drop_duplicates("index", keep="first")
+                  .set_index("index"))
 
 
 def herdar_entre_classes(cand: pd.DataFrame, tolerancia: float = 0.20) -> pd.DataFrame:
@@ -299,6 +484,7 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     with warehouse.connect(read_only=True) as con:
         df = _serie_por_ticker(con)
         acoes = _razao_de_acoes(con)
+        gabarito = _gabarito_cvm(con)
 
     g = df.groupby("ticker", sort=False)
     df["fech_ant"] = g["fechamento"].shift(1)
@@ -368,6 +554,26 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     cand["fator_sugerido"] = [a[0] for a in aprox]
     cand["erro_relativo"] = [a[1] for a in aprox]
 
+    # O GABARITO ENTRA AQUI, ANTES DE TUDO, PORQUE ELE TROCA O FATOR.
+    # Quando a CVM anunciou o evento, o fator dela substitui a fracao redonda tirada do
+    # preco -- e a diferenca nao e cosmetica. A GFSA3 em 23/09/2022 agrupou 8,9:1, um
+    # fator que NAO e fracao simples: o detector por preco so sabia oferecer 1/9 ou 1/10 e
+    # errava o retorno do papel em varios pontos percentuais. A CVM diz 0,112266 exato.
+    # Tudo o que vem depois (confirmacao por quantidade, heranca entre classes, confianca)
+    # passa a usar o fator certo.
+    cand["gabarito_confirma"] = False
+    cand["fator_gabarito"] = np.nan
+    cand["tipo_gabarito"] = pd.Series(pd.NA, index=cand.index, dtype="object")
+    cand["dias_da_aprovacao"] = np.nan
+    casado = casar_com_gabarito(cand, gabarito)
+    if not casado.empty:
+        cand.loc[casado.index, "gabarito_confirma"] = True
+        cand.loc[casado.index, "fator_gabarito"] = casado["fator_gabarito"]
+        cand.loc[casado.index, "tipo_gabarito"] = casado["tipo_gabarito"]
+        cand.loc[casado.index, "dias_da_aprovacao"] = casado["dias_da_aprovacao"]
+        cand.loc[casado.index, "fator_sugerido"] = casado["fator_gabarito"]
+        cand.loc[casado.index, "erro_relativo"] = casado["erro_gabarito"]
+
     # RAZAO EXTREMA -- dispensa as confirmacoes, e precisa dispensar.
     # Acao nao triplica nem cai a um terco num pregao por motivo de mercado. Quando a
     # razao e extrema E redonda, o preco ja decidiu sozinho.
@@ -419,30 +625,10 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # acoes multiplica por 8, o preco divide por 8. Entao a contagem e uma segunda medida
     # do mesmo fator -- e ela nao sofre do tick de R$0,01 nem do movimento do dia ex, que
     # sao justamente os dois erros que sobraram no detector.
-    if acoes.empty:
-        cand["razao_acoes"] = np.nan
-    else:
-        cand["ano"] = pd.to_datetime(cand["data"]).dt.year
-        # Janela de dois anos: a data de referencia do FRE nao coincide com a data ex, e
-        # evento de dezembro aparece no formulario do ano seguinte.
-        # Dentro da janela, fica a razao MAIS PROXIMA do fator sugerido. Nao e escolher
-        # o que da certo: o FRE nao data o evento, entao "houve uma variacao de acoes
-        # compativel na janela?" e a pergunta que a fonte consegue responder. Ela confirma
-        # um candidato que o preco ja apontou; nunca cria evento sozinha.
-        melhor, erro_melhor = None, None
-        for desloc in (0, 1):
-            tmp = acoes.copy()
-            tmp["ano"] = tmp["ano"] - desloc
-            j = cand[["ticker", "ano"]].merge(tmp, on=["ticker", "ano"], how="left")
-            r = j["razao_acoes"].values
-            e = np.abs(r / cand["fator_sugerido"].values - 1)
-            if melhor is None:
-                melhor, erro_melhor = r, e
-            else:
-                troca = np.less(e, erro_melhor, where=~np.isnan(e), out=np.zeros_like(e, dtype=bool))
-                melhor = np.where(troca, r, melhor)
-                erro_melhor = np.where(troca, e, erro_melhor)
-        cand["razao_acoes"] = melhor
+    cand["razao_acoes"] = np.nan
+    casado = casar_com_contagem(cand, acoes)
+    if not casado.empty:
+        cand.loc[casado.index, "razao_acoes"] = casado["razao_acoes"]
     cand["acoes_confirmam"] = (
         (cand["razao_acoes"] / cand["fator_sugerido"] - 1).abs() <= par.tolerancia_acoes
     ).fillna(False)
@@ -489,6 +675,11 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
         tolerancia,
         np.where(cand["grupamento_inequivoco"] | cand["grupamento_corroborado"],
                  par.tolerancia_grupamento_extremo, 0.0))
+    # O gabarito manda em cima de todas: o fator ja veio da CVM, entao ao preco resta so
+    # ser consistente com ele -- e a consistencia ja foi exigida (TOLERANCIA_GABARITO) na
+    # hora de casar. `maximum` para nunca reduzir uma folga que outra evidencia concedeu.
+    tolerancia = np.maximum(
+        tolerancia, np.where(cand["gabarito_confirma"], par.tolerancia_gabarito, 0.0))
     cand["tolerancia_usada"] = tolerancia
     cand["razao_redonda"] = cand["erro_relativo"] <= tolerancia
     cand["preco_confiavel"] = cand["fech_cotado_ant"] >= par.preco_minimo
@@ -509,14 +700,30 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
     # de cotacao, e a contagem de acoes da CVM nao confirma porque as tres fizeram aumento
     # de capital no mesmo ano -- exatamente o ruido que a TOLERANCIA_ACOES documenta. Sem
     # esta via elas ficavam no balde de centavos com +2.007%, +2.938% e +4.170% no painel.
+    # O gabarito supera o veto do tick pelo mesmo motivo que a contagem de acoes, so que
+    # com mais forca: a CVM nao sabe nada sobre o tick de R$0,01 da B3, e aqui ela ainda
+    # diz QUANDO o ato foi aprovado. Metade dos grupamentos de papel de centavos da base
+    # esta nessa situacao -- evento anunciado, preco em centavos, e por isso nao ajustado.
     cand["evidencia_supera_tick"] = (
         cand["razao_extrema"] & (cand["classes_confirmam"] | cand["fator_cotacao_mudou"])
-    ) | cand["acoes_confirmam"] | cand["grupamento_inequivoco"] | cand["grupamento_corroborado"]
+    ) | cand["acoes_confirmam"] | cand["grupamento_inequivoco"] \
+      | cand["grupamento_corroborado"] | cand["gabarito_confirma"]
     cand["preco_ok"] = cand["preco_confiavel"] | cand["evidencia_supera_tick"]
 
     cand["tipo_sugerido"] = np.where(cand["fator_sugerido"] > 1, "desdobramento", "grupamento")
+    # Onde a CVM declarou o tipo, vale o dela: "Bonificacao" nao e desdobramento, ainda
+    # que o efeito no preco seja o mesmo e o ajuste seja identico.
+    declarado = cand["tipo_gabarito"].notna()
+    cand.loc[declarado, "tipo_sugerido"] = (
+        cand.loc[declarado, "tipo_gabarito"].str.lower()
+            .str.normalize("NFKD").str.encode("ascii", "ignore").str.decode("ascii"))
 
     cond = [
+        # O gabarito basta sozinho, e e o unico ramo em que isso vale: o fator nao saiu do
+        # preco, saiu do formulario da CVM, e o preco so precisou ser consistente com ele
+        # dentro de uma janela medida. As outras evidencias confirmam um fator que o preco
+        # inventou; esta o substitui.
+        cand["gabarito_confirma"],
         # Confirmacao entre classes basta sozinha: e evidencia mais forte que quantidade
         # ou financeiro, porque nao ha mecanismo de mercado que a produza por acaso.
         cand["razao_redonda"] & cand["preco_ok"] & cand["acoes_confirmam"],
@@ -533,7 +740,7 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
         cand["razao_redonda"],
     ]
     cand["confianca"] = np.select(
-        cond, ["alta", "alta", "alta", "alta", "alta", "media", "baixa",
+        cond, ["alta", "alta", "alta", "alta", "alta", "alta", "media", "baixa",
                "preco_de_centavos"],
         default="descartado")
 
@@ -547,6 +754,7 @@ def detectar(par: Parametros | None = None) -> pd.DataFrame:
             "financeiro_estavel", "preco_confiavel", "preco_ok",
             "evidencia_supera_tick", "grupamento_inequivoco", "grupamento_corroborado",
             "razao_acoes", "acoes_confirmam",
+            "gabarito_confirma", "fator_gabarito", "tipo_gabarito", "dias_da_aprovacao",
             "classes_confirmam", "razao_extrema",
             "fator_cotacao_mudou",
             "tipo_sugerido", "confianca"]

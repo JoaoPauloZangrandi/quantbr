@@ -30,6 +30,25 @@ padrao da maior parte da literatura, que usa contagem anual defasada. A defasage
 e aplicada em `painel.py`, nao aqui: o numero de acoes de 31/12/2023 so pode ser usado
 depois que o documento foi entregue, senao entra look-ahead.
 
+MAS A LINHA NAO E ANUAL -- ELA E DATADA, e ignorar isso era um defeito de base
+(encontrado em 14/09/2026, consertado em 15/09/2026)
+
+Cada registro de capital social traz `Data_Autorizacao_Aprovacao`: a data da assembleia
+ou reuniao que aprovou AQUELE capital. O FRE de 2017 da COSAN LOGISTICA, por exemplo, traz
+quatro linhas -- 2014-10-01, 2016-05-10, 2017-03-17 e 2017-09-21 -- com quantidades
+diferentes. O que o formulario entrega e o HISTORICO de capital ate a data de referencia,
+nao um numero por ano.
+
+Este coletor descartava a coluna. A consequencia estava tres camadas adiante: em
+`master/eventos._razao_de_acoes` a contagem por ano sai de `arg_max(qtd, Versao)`, que
+diante de varias linhas empatadas na mesma versao escolhe **arbitrariamente**. Medido em
+14/09/2026: 12,9% dos pares empresa-ano (1.340 de 10.352) tem mais de uma quantidade
+distinta, com ate 49 valores diferentes no pior caso. E `acoes_confirmam` -- a unica
+evidencia do detector de eventos que nao vem do preco -- estava apoiada nesse desempate.
+
+Com a data, a contagem de acoes vira uma serie POINT-IN-TIME por CNPJ, que e o que ela
+sempre deveria ter sido.
+
 A PONTE ATE O TICKER
 
 O FRE e chaveado por CNPJ e o painel por ticker, entao e preciso um vinculo. Ele sai do
@@ -57,7 +76,8 @@ URL_FCA = "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/FCA/DADOS/fca_cia_abert
 ANO_INICIAL = 2010
 
 COLS_CAPITAL = ["CNPJ_Companhia", "Data_Referencia", "Versao", "Nome_Companhia",
-                "Tipo_Capital", "Quantidade_Acoes_Ordinarias",
+                "ID_Capital_Social", "Tipo_Capital", "Data_Autorizacao_Aprovacao",
+                "Valor_Capital", "Quantidade_Acoes_Ordinarias",
                 "Quantidade_Acoes_Preferenciais", "Quantidade_Total_Acoes"]
 COLS_FLOAT = ["CNPJ_Companhia", "Data_Referencia", "Versao", "Nome_Companhia",
               "Quantidade_Acoes_Ordinarias_Circulacao",
@@ -115,6 +135,17 @@ def carregar_fre(anos: list[int]) -> dict[str, int]:
                 if c.startswith("Quantidade") or c.startswith("Percentual"):
                     df[c] = pd.to_numeric(df[c], errors="coerce")
             df["Data_Referencia"] = pd.to_datetime(df["Data_Referencia"], errors="coerce")
+            # A DATA DA LINHA, que este coletor descartava ate 15/09/2026 -- e o descarte
+            # era um defeito de base, nao um detalhe. Ver o bloco FREQUENCIA E PONTO NO
+            # TEMPO no topo do arquivo: sem ela, `master/eventos._razao_de_acoes` desempata
+            # com `arg_max(qtd, Versao)`, o que e ARBITRARIO em 12,9% dos pares
+            # empresa-ano. O formato do campo e AAAA-MM-DD, igual ao Data_Referencia.
+            if "Data_Autorizacao_Aprovacao" in df.columns:
+                df["Data_Autorizacao_Aprovacao"] = pd.to_datetime(
+                    df["Data_Autorizacao_Aprovacao"], errors="coerce")
+            if "Valor_Capital" in df.columns:
+                df["Valor_Capital"] = pd.to_numeric(
+                    df["Valor_Capital"].str.replace(",", ".", regex=False), errors="coerce")
             df["_source_file"] = "cvm/FRE"
             df["_downloaded_at"] = agora
             con.execute(f"DROP TABLE IF EXISTS {tabela}")
