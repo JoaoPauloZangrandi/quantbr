@@ -1109,3 +1109,17 @@ Base: pregão de **14/09/2026** incorporado (1.485 linhas), painel reconstruído
 está +0,9 p.p. acima do CDI, não abaixo; (b) o horizonte de 1 mês tem continuação, não
 reversão — qualquer sinal de curto prazo no Brasil tem que partir daí; (c) a capacidade de
 R$6,9 mi era do piso de liquidez, não da estratégia.
+
+### 2026-09-15 17:30 — claude — Pendência nº5: commits e push feitos
+
+**Pedido:** parte do mesmo pedido acima ("resolva todos esses problemas").
+**Feito:** dois commits novos e o push que estava parado desde 11/09.
+
+- `686dfda` — O gabarito da CVM no detector, e o crash que ele achou apagado
+- `51db682` — O horizonte de 1 mes tem continuacao, e a capacidade era do piso
+
+**Resultado:** `git push origin main` subiu `9c52a18..51db682`, ou seja os quatro commits
+que estavam só locais (`d5b150f`, `0d9c898` e os dois de hoje). 116 testes passam.
+`knowledge/` continua fora do git — é do Codex, e a regra do `EQUIPE.md` é que eu leio e
+não commito lá. A entrada do Codex de 14/09 no diário foi junto no commit, porque o diário
+é compartilhado.
