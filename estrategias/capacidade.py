@@ -10,9 +10,10 @@ decisao.
 O QUE FALTAVA PERGUNTAR
 
 R$6,9 milhoes nao e uma propriedade da estrategia, e uma consequencia de UMA escolha: o
-piso de liquidez de R$500 mil/dia. Subir o piso joga fora o papel fino, e e o papel fino
-que fixa o gargalo -- a carteira cabe no MENOS liquido que ela compra. Entao existe uma
-curva, e a decisao de alocacao mora nela:
+piso de liquidez -- que era R$500 mil/dia quando esta curva foi medida pela primeira vez e
+virou R$50 mil por decisao do Joao em 15/09/2026. Subir o piso joga fora o papel fino, e e
+o papel fino que fixa o gargalo -- a carteira cabe no MENOS liquido que ela compra. Entao
+existe uma curva, e a decisao de alocacao mora nela:
 
     piso de liquidez  ->  quantos papeis sobram  ->  capacidade  ->  retorno liquido
 
@@ -24,7 +25,7 @@ maximo do fundo esta medido.
 COMO LER (protocolo de leitura de resultado)
 
 Cada linha e uma tentativa a mais no ledger, e todas sao gravadas -- inclusive as ruins.
-Sao 6 pisos x 3 estrategias = 18 trials nesta rodada, e o teste multiplo cobra por elas.
+Sao 7 pisos x 3 estrategias = 21 trials nesta rodada, e o teste multiplo cobra por elas.
 A leitura certa nao e "achei o piso otimo", e sim "a curva inteira tem a forma que a
 hipotese previa?".
 
@@ -38,7 +39,8 @@ import pandas as pd
 
 from estrategias import motor, sinais
 
-PISOS = (100_000.0, 500_000.0, 1_000_000.0, 5_000_000.0, 10_000_000.0, 50_000_000.0)
+PISOS = (50_000.0, 100_000.0, 500_000.0, 1_000_000.0, 5_000_000.0,
+         10_000_000.0, 50_000_000.0)
 
 
 def curva(pisos=PISOS, *, registrar: bool = True) -> pd.DataFrame:
@@ -94,7 +96,8 @@ if __name__ == "__main__":
     print()
     mom = g[g["estrategia"] == "momento 12-1"].sort_values("piso_liquidez")
     if len(mom) > 1:
-        base = mom.iloc[1]  # o piso de R$500 mil, que e o default do motor
+        base = mom[mom["piso_liquidez"] == motor.Parametros().liquidez_minima]
+        base = base.iloc[0] if len(base) else mom.iloc[0]  # o default do motor
         for _, l in mom.iterrows():
             if l["piso_liquidez"] <= base["piso_liquidez"]:
                 continue

@@ -39,8 +39,12 @@ import numpy as np
 import pandas as pd
 
 import warehouse
+from estrategias import motor
 
-LIQUIDEZ_MINIMA = 500_000.0   # o mesmo default do motor
+# O piso de liquidez sai do motor, nao de uma copia local: duas definicoes do mesmo
+# universo divergem em silencio no dia em que uma das duas muda -- e uma delas mudou, de
+# R$500 mil para R$50 mil, em 15/09/2026.
+LIQUIDEZ_MINIMA = motor.Parametros().liquidez_minima
 MES_INICIAL = "2010-01"
 N_QUINTIS = 5
 
@@ -123,9 +127,9 @@ def relatorio() -> str:
     linhas.append("")
 
     # Liquidez: se o efeito so existe no papel fino, e microestrutura.
-    # Os tercos sao formados DENTRO do universo negociavel (>= R$500 mil/dia nos dois
-    # meses), nao dentro da base inteira. Sem isso o terco de baixo fica vazio depois do
-    # filtro -- seriam tercos de um universo em que a estrategia nem pode comprar.
+    # Os tercos sao formados DENTRO do universo negociavel (acima do piso nos dois meses),
+    # nao dentro da base inteira. Sem isso o terco de baixo fica vazio depois do filtro --
+    # seriam tercos de um universo em que a estrategia nem pode comprar.
     d = d.dropna(subset=["volume_mediano"]).copy()
     d = d[(d["volume_mediano"] >= LIQUIDEZ_MINIMA)
           & (d["liquidez_prox"].fillna(0) >= LIQUIDEZ_MINIMA)]

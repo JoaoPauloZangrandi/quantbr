@@ -74,18 +74,34 @@ como retorno de quatro dígitos (PDGR3 +4.170%, IRBR3 +2.938%, BHIA3 +2.007%). Q
 três linhas em 31.915 carregavam o excesso sobre o CDI inteiro. O detalhe está no
 `DIARIO.md`, entrada de 11/09 13:40, e em `REGISTRO.md` seção 6.
 
-Números atuais, sobre a base **com o gabarito de evento da CVM aplicado em 15/09/2026** —
-200 meses (2010–2026), 20 papéis, líquido de custo, filtro de R$500 mil/dia. Reproduzíveis
-com `python -m estrategias.alicerce`:
+### O PISO DE LIQUIDEZ MUDOU PARA R$ 50 MIL — decisão do João, 15/09/2026
+
+**Isto muda a barra e muda o universo.** O default do motor era R$ 500 mil de volume
+mediano diário; passou a ser **R$ 50 mil**. O universo elegível vai de 146 para **192
+empresas por mês**, e o custo médio do momento sobe de 2,1% para **5,0% ao ano**, porque a
+cauda que entrou cobra spread de ida e volta de até 4,50%.
+
+Números atuais, sobre a base **com o gabarito de evento da CVM** e **com o piso de R$ 50
+mil** — 200 meses (2010–2026), 20 papéis, líquido de custo. Reproduzíveis com
+`python -m estrategias.alicerce`:
 
 | | retorno líquido | acima do CDI | Sharpe (vs CDI) | max DD | giro | capacidade |
 |---|---|---|---|---|---|---|
-| benchmark equal-weight | +6,3% | **−3,5 p.p.** | **−0,03** | −46,4% | 7%/mês | R$ 38,2 mi |
-| momento 12-1 | +10,8% | **+0,9 p.p.** | **0,16** | −44,3% | 29%/mês | **R$ 6,9 mi** |
-| reversão 1 mês | −14,2% | −24,0 p.p. | −0,63 | −94,9% | 84%/mês | R$ 6,1 mi |
-| armagedom defensivo | +7,5% | −2,7 p.p. | −0,08 | **−30,6%** | 26%/mês | R$ 6,9 mi |
+| benchmark equal-weight | +4,3% | **−5,5 p.p.** | **−0,12** | −48,3% | 8%/mês | R$ 5,1 mi |
+| momento 12-1 | +6,2% | −3,6 p.p. | −0,04 | −46,6% | 32%/mês | **R$ 0,8 mi** |
+| reversão 1 mês | −18,4% | −28,2 p.p. | −0,72 | −97,5% | 86%/mês | R$ 0,7 mi |
+| armagedom defensivo | +5,2% | −5,1 p.p. | −0,22 | **−26,0%** | 30%/mês | R$ 0,7 mi |
 
-**A barra do benchmark NÃO mudou: continua −0,03.** O que mudou foi o momento, e por um
+**Com o piso anterior de R$ 500 mil** (mesma base, para comparar): benchmark +6,3% /
+−3,5 p.p. / **−0,03** / R$ 38,2 mi; momento 12-1 +10,8% / **+0,9 p.p.** / **0,16** /
+R$ 6,9 mi; reversão −14,2% / −24,0 p.p. / −0,63; armagedom +7,5% / −2,7 p.p. / −0,08.
+
+**Nenhuma das três famílias bate o CDI no piso novo**, e o momento volta a perder — o que
+ele ganhou com a limpeza de eventos, perdeu com o custo da cauda ilíquida. A curva inteira
+está em `estrategias/capacidade.py`.
+
+**A limpeza de eventos não mexeu no benchmark: ele continuou em −0,03** (quem mudou a
+barra depois foi o piso de liquidez, acima). O que mudou foi o momento, e por um
 motivo de base, não de estratégia: 39 eventos de quantidade que ninguém ajustava entraram
 no painel (29 deles confirmados pelo gabarito da CVM, ver `DIARIO.md` de 15/09) e 38
 "eventos" que a contagem anual de ações confirmava por acaso saíram — entre eles o crash
@@ -104,9 +120,11 @@ estar do lado errado do CDI.
   a 14/09/2026 guardam a soma.
 - **giro** agora inclui o reequilíbrio de quem ficou na carteira, não só troca de nomes.
 
-**A barra a usar é −0,03.** Qualquer estratégia, ortodoxa ou alternativa, compara com ela —
-e quem não bater o CDI (9,8% no período) não é estratégia, por melhor que seja o Sharpe
-relativo.
+**A barra a usar é −0,12, com piso de liquidez de R$ 50 mil.** Qualquer estratégia,
+ortodoxa ou alternativa, compara com ela — e quem não bater o CDI (9,8% no período) não é
+estratégia, por melhor que seja o Sharpe relativo. **Compare sempre no mesmo piso**: um
+Sharpe medido com R$ 500 mil não é comparável com um medido com R$ 50 mil, porque o
+universo e o custo são outros.
 
 ### O horizonte de 1 mês tem CONTINUAÇÃO, não reversão (medido em 15/09/2026)
 
@@ -116,11 +134,17 @@ Vale para quem for desenhar sinal de curto prazo, e contraria a literatura impor
 
 | corte | spread anual | t (Newey-West) | meses |
 |---|---|---|---|
-| tudo | **+15,1%** | 3,22 | 200 |
-| retorno do ponto médio (sem bid-ask bounce) | +15,3% | 3,39 | 200 |
-| primeira metade (até 2018-05) | +17,0% | 2,40 | 101 |
-| segunda metade | +13,1% | 2,03 | 99 |
-| terço mais líquido do universo negociável | +9,2% | 1,85 | 200 |
+| tudo | **+13,4%** | 3,17 | 200 |
+| retorno do ponto médio (sem bid-ask bounce) | +12,7% | 2,95 | 200 |
+| primeira metade (até 2018-05) | +15,8% | 2,88 | 101 |
+| segunda metade | +10,9% | **1,55** | 99 |
+| terço mais líquido do universo negociável | +13,0% | 2,68 | 200 |
+| terço menos líquido | +7,8% | **0,95** | 200 |
+
+Medido com o piso de R$ 50 mil. Com o piso anterior de R$ 500 mil dava +15,1% e t de 3,22,
+ou seja, **descer o piso enfraqueceu o efeito em vez de reforçá-lo** — a cauda ilíquida
+tem MENOS continuação, não mais (t de 0,95 no terço de baixo). A segunda metade da amostra
+fica com t de 1,55: o efeito existe nas duas, mas não é significativo sozinho na recente.
 
 O sinal é positivo: **o que subiu no mês passado continua subindo.** É o mesmo fato que a
 família "reversão 1 mês" já dizia com Sharpe −0,63, e explica por que **pulo 0 bate pulo 1**

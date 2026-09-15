@@ -1779,7 +1779,10 @@ piso de R$500 mil/dia, porque a carteira de peso igual cabe no menos líquido qu
 | R$ 50 mi | 42 | +11,5% | +2,3 pp | 0,21 | R$ 535,9 mi |
 
 **A capacidade multiplica por 78 e o retorno sobe.** O edge do momento não mora no papel
-fino. Ressalvas que vão junto e não são decorativas: com piso de R$50 milhões sobram 42
+fino. **O João decidiu o contrário em 15/09/2026** — piso de R$ 50 mil, que é o extremo
+oposto da curva: 192 elegíveis por mês, custo de 5,0% a.a., capacidade de R$ 0,8 milhão e
+benchmark em −0,12. A decisão está registrada no `DIARIO.md` e no comentário de
+`motor.Parametros.liquidez_minima`, com os números do que ela custa. Ressalvas que vão junto e não são decorativas: com piso de R$50 milhões sobram 42
 elegíveis e 20 papéis viram metade do universo; o benchmark PIORA com piso alto (−0,03 →
 −0,17), então parte do ganho relativo é o benchmark caindo; e o armagedom na mesma tabela
 salta de −0,12 para +0,38 de forma não monotônica, o que é instabilidade e serve de
@@ -1851,7 +1854,7 @@ a análise deixou de ser pergunta aberta quando o alicerce entrou.
 | # | Pendência | Contexto |
 |---|---|---|
 | 1 | **209 emissores sem vínculo CNPJ** | 20% dos pregões de ação, incluindo CSNA3, KLBN4, VALE5. Casar por nome erraria (`KLABIN S/A` casa com três empresas, duas canceladas). Revisão manual uma vez, congelada em crosswalk versionado. **Continua aberta** — é a única das originais que sobrou |
-| 2 | **Qual piso de liquidez o fundo usa** | Nova, e é decisão de alocação, não de código. A curva de `estrategias/capacidade.py` mostra que subir o piso de R$500 mil para R$50 milhões multiplica a capacidade por 78 e não custa retorno no momento. Mas em 42 elegíveis a carteira de 20 papéis vira meio universo. O default do motor continua R$500 mil até você decidir |
+| 2 | ~~**Qual piso de liquidez o fundo usa**~~ | **DECIDIDO em 15/09/2026: R$ 50 mil.** O default do motor era R$ 500 mil. O preço da decisão está medido: universo de 146 → 192 empresas/mês, custo do momento de 2,1% → 5,0% a.a., capacidade de R$ 6,9 mi → R$ 0,8 mi, e a barra do benchmark de −0,03 → **−0,12**, com o momento voltando a perder do CDI (−3,6 p.p.). A curva completa está em `estrategias/capacidade.py` |
 | 3 | **Sinal de curto prazo, agora que o horizonte de 1 mês está medido** | A continuação de 1 mês rende +15,1% a.a. bruto no spread de quintis, com t de 3,22, e não é bid-ask bounce. A perna vendida exigiria aluguel por papel (arquivo BTB da B3, que a base não tem); só comprado, é uma família nova a testar. Não fiz: seria estratégia nova, e isso é decisão sua |
 | 4 | **Dado contábil destravaria ~32% mais papers da SSRN** | Pendência antiga, continua de pé |
 

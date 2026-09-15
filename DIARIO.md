@@ -1123,3 +1123,50 @@ que estavam só locais (`d5b150f`, `0d9c898` e os dois de hoje). 116 testes pass
 `knowledge/` continua fora do git — é do Codex, e a regra do `EQUIPE.md` é que eu leio e
 não commito lá. A entrada do Codex de 14/09 no diário foi junto no commit, porque o diário
 é compartilhado.
+
+### 2026-09-15 18:10 — claude — Piso de liquidez baixado para R$ 50 mil
+
+**Pedido:** "deixe o piso em 50 mil".
+
+**Feito:** `motor.Parametros.liquidez_minima` passou de **R$ 500.000 para R$ 50.000**. É o
+piso de volume financeiro mediano diário que um papel precisa ter para poder ENTRAR na
+carteira (`motor._elegiveis`). Junto:
+
+- `estrategias/capacidade.py` ganhou o piso de R$ 50 mil na grade (7 pisos agora) e passou
+  a tomar o default do motor como linha de base, em vez de assumir R$ 500 mil;
+- `estrategias/horizonte_curto.py` tinha uma cópia local do piso, com o comentário "o mesmo
+  default do motor" — que teria virado mentira hoje. Agora importa
+  `motor.Parametros().liquidez_minima`. Duas definições do mesmo universo divergem em
+  silêncio no dia em que uma muda.
+
+**Resultado — a barra mudou, e para pior.** Universo vai de 146 para **192 empresas
+elegíveis por mês**, e o custo do momento sobe de 2,1% para **5,0% ao ano**:
+
+| | piso R$ 500 mil | **piso R$ 50 mil** |
+|---|---|---|
+| benchmark equal-weight | +6,3% / −3,5 pp / **−0,03** / R$ 38,2 mi | +4,3% / −5,5 pp / **−0,12** / R$ 5,1 mi |
+| momento 12-1 | +10,8% / +0,9 pp / **0,16** / R$ 6,9 mi | +6,2% / −3,6 pp / **−0,04** / R$ 0,8 mi |
+| reversão 1 mês | −14,2% / −24,0 pp / −0,63 | −18,4% / −28,2 pp / −0,72 |
+| armagedom defensivo | +7,5% / −2,7 pp / −0,08 | +5,2% / −5,1 pp / −0,22 |
+
+**A barra oficial passa a ser −0,12**, e **nenhuma das três famílias bate o CDI** de novo:
+o que o momento tinha ganhado hoje com a limpeza de eventos (+0,9 p.p. acima do CDI) ele
+devolveu inteiro para o custo da cauda ilíquida (−3,6 p.p. abaixo). A capacidade cai para
+**R$ 0,8 milhão** — a carteira de peso igual cabe no menos líquido que ela compra, e agora
+ela compra papel de R$ 50 mil/dia.
+
+**E o efeito de continuação de 1 mês enfraqueceu, não reforçou.** Remedido no piso novo:
++13,4% a.a. com t de 3,17 (era +15,1% e 3,22). O terço MENOS líquido do universo tem o
+menor spread e t de 0,95 — ou seja, a cauda fina não é onde o efeito mora.
+
+**Arquivos:** `estrategias/motor.py`, `estrategias/capacidade.py`,
+`estrategias/horizonte_curto.py`, `EQUIPE.md`, `DIARIO.md`, `REGISTRO.md`. 116 testes
+passam.
+
+**Assunção declarada:** li "50 mil" como **R$ 50.000**, que é o que está escrito. Se era
+R$ 50 milhões — o extremo oposto da curva, onde a capacidade vai a R$ 536 milhões e o
+momento a Sharpe 0,21 — é uma linha em `motor.Parametros` e um `alicerce` para refazer a
+barra.
+
+**Codex: a barra mudou de novo. Use −0,12 com piso de R$ 50 mil, e compare sempre no mesmo
+piso** — Sharpe medido em universos diferentes não é comparável.

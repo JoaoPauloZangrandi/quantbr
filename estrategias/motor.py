@@ -53,9 +53,24 @@ MESES_NO_ANO = 12
 class Parametros:
     """Tudo que muda o resultado fica aqui, e vai inteiro para o ledger."""
     n_papeis: int = 20
-    # Filtro de negociabilidade. O default nao e neutro: R$500 mil por dia ja exclui a
-    # cauda onde o custo de ida e volta passa de 4% e nenhuma estrategia sobrevive.
-    liquidez_minima: float = 500_000.0
+    # Filtro de negociabilidade: volume financeiro mediano diario minimo para o papel
+    # poder ENTRAR na carteira. O default nao e neutro, e nunca foi.
+    #
+    # DECISAO DO JOAO EM 15/09/2026: R$ 50 mil, no lugar dos R$ 500 mil anteriores. E o
+    # universo mais largo que este motor ja rodou (192 empresas elegiveis por mes, contra
+    # 146), e o preco esta medido e e alto -- ver `estrategias/capacidade.py` e a entrada
+    # de 15/09 no DIARIO.md:
+    #
+    #   piso      elegiveis/mes   benchmark   momento 12-1   custo do momento   capacidade
+    #   R$  50k       192           -0,12        -0,04            5,0% a.a.      R$ 0,8 mi
+    #   R$ 500k       146           -0,03        +0,16            2,1% a.a.      R$ 6,9 mi
+    #   R$  50 mi      42           -0,17        +0,21            0,6% a.a.      R$ 536 mi
+    #
+    # Ou seja: descer o piso NAO e neutro, e a direcao contraria a que a curva aponta. A
+    # cauda abaixo de R$500 mil/dia cobra spread de ida e volta de ate 4,50%, e a esse
+    # custo o momento volta a perder do CDI. Fica registrado que a escolha e deliberada e
+    # que o numero que ela produz e a barra nova.
+    liquidez_minima: float = 50_000.0
     # Retorno usado. 'retorno_total' inclui provento; 'retorno_qtd' so ajusta quantidade.
     # A escolha muda o resultado e por isso e explicita -- regra do projeto: nao existe
     # "o preco".
