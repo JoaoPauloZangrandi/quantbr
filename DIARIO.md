@@ -898,3 +898,214 @@ médio de 10 bps. O ponto a vigiar está fechado. (A série ponderada cobre 3.96
 3. **Capacidade de R$ 6,9 milhões** no momento. A tese de capital pequeno agora tem número.
 4. **Pulo 0 bate pulo 1** na grade do momento, contra a teoria. Não investigado.
 5. O push do commit de 11/09 (`d5b150f`) continua sem ser feito.
+
+### 2026-09-14 — codex — Auditoria de vinte eventos autorizada
+
+**Pedido literal:** "faça", em resposta ao plano de auditar vinte eventos cronologicamente, incluindo fracassos/cancelamentos, reconstruir informação pública/preços/prazos/custos e capacidade versus CDI.
+**Decisão anterior a preços:** amostra principal = primeiras vinte OPAs de ações/units/BDRs com data indicada a partir de 2022-01-01 na listagem pública B3, ordenadas por essa data, excluindo OPACs de FIIs. Datas são de agenda/vigência, não necessariamente primeiro anúncio; casos indeferidos e revogados permanecem. Essa moldura não representa todas as propostas de OPA do mercado. Direitos de subscrição receberão auditoria complementar de viabilidade, sem confundir identidade de preço com arbitragem executada.
+**Execução:** consultar editais e desfechos oficiais, cruzar preços locais em leitura curta e preservar lacunas. Vinte casos não significam vinte trades executáveis. Não duplicar ingestão nem alterar motor/warehouse. Regras de drawdown e posição presa pertencem à infraestrutura; registrar achados atuais sem sobrepor trabalho de Claude. Números anteriores são dependentes dos hashes; diário novo registra contaminações residuais, portanto nenhuma promoção de estratégia por esta auditoria documental.
+
+### 2026-09-15 15:58 — claude — Retomada de contexto
+
+**Pedido:** "retome a conversa de ai hedge fund".
+**Feito:** li as últimas entradas do DIARIO.md (última minha em 14/09, última do Codex em
+14/09 sobre auditoria de vinte OPAs), a seção 8 do REGISTRO.md, o EQUIPE.md (barra −0,03) e
+o `atualizacao.log`. Nada executado ainda — aguardando o João escolher o próximo passo.
+**Arquivos:** DIARIO.md.
+**Resultado:** estado confirmado — base parada no pregão de 2026-09-11 (a tarefa rodou em
+14/09 21:17 e não achou pregão novo), `d5b150f` e `0d9c898` ainda sem push, entrada do Codex
+de 14/09 ainda não commitada. Cinco pendências abertas da entrada de 14/09.
+
+### 2026-09-15 — codex — Retomada da conversa AI hedge fund
+
+**Pedido literal:** "retome a conversa de ai hedge fund".
+**Entendimento e execução:** recuperar o contexto e identificar o ponto interrompido. Consultados índice e histórico local da conversa, EQUIPE.md, últimas entradas de DIARIO.md, estrategias/MORTAS.md, resultados CP04-P0 e arquivos da auditoria de eventos. Claude mantém infraestrutura; Codex mantém estratégias alternativas em knowledge/.
+**Estado confirmado nos artefatos:** CP04-P0 registrou 8,09% a.a. líquido versus 9,76% do CDI em 175 meses e foi rejeitado para promoção. A auditoria autorizada de vinte OPAs tem cadastro, snapshots e vinte PDFs E01–E20; não há relatório final nessa pasta. E13.txt tem somente 4 bytes, pendente de extração/leitura. Próximo ponto de trabalho: concluir cronologia, condições de execução e comparação líquida com CDI, preservando cancelamentos e lacunas. Diário da infraestrutura registra contaminações residuais; resultados anteriores não foram revalidados nesta retomada.
+**Decisões:** nenhum novo backtest, coletor, ordem ou escrita no warehouse nesta recuperação de contexto. Não tratar documentação coletada como estratégia validada.
+**Erros operacionais:** leitura do JSONL com PowerShell ficou demorada; leitura substituída por Python. Primeira impressão Python falhou por UnicodeEncodeError cp1252; repetida com stdout UTF-8.
+
+### 2026-09-15 17:05 — claude — As cinco pendências de 14/09, fechadas
+
+**Pedido:** "resolva todos esses problemas, independente se está no seu escopo ou não, mas
+anote o que voce fez em algum lugar pro claude code ver".
+
+**Feito:** as cinco pendências abertas na entrada de 14/09. Em ordem.
+
+#### 1. O gabarito de evento da CVM — coletor construído e ligado ao detector
+
+`ingest/eventos_cvm.py` (novo). Lê `fre_cia_aberta_capital_social_desdobramento_AAAA.csv`
+de dentro dos zips do FRE que a base já baixava, e grava `cvm_eventos_anunciados`:
+**866 eventos distintos, 438 empresas, de 2007 a 2023**, com tipo declarado
+(Desdobramento 337, Grupamento 315, Bonificação 214), data de aprovação e quantidade de
+ações antes e depois — o **fator exato**.
+
+A deduplicação é a parte que exigia cuidado: o mesmo ato é redeclarado em todo FRE
+posterior (a Telebras declara em 2016 um grupamento de 2010, e repete até 2022). A chave
+de identidade é (CNPJ, data de aprovação, tipo, quantidade antes, quantidade depois) —
+nunca o `ID_Capital_Social_Desdobramento`, que é id de documento e muda a cada entrega.
+
+**Limite de cobertura, medido e não escondido:** o bloco some do FRE a partir de 2023 (2
+linhas em 2023, zero de 2024 em diante). O gabarito cobre 2007–2022; de 2023 em diante, e
+em todo o período 2005–2006, vale só o detector por preço.
+
+**Como ele entra no detector** (`master/eventos.py`): como **quarta evidência**, e a única
+que não precisa que o preço prove nada. Duas condições, as duas necessárias:
+
+- o fator anunciado explica a razão de preço observada dentro de 12%;
+- a data ex cai na janela **[aprovação − 10 dias, aprovação + 120 dias]**.
+
+A janela foi medida, não arbitrada. Cruzando os 9.631 saltos de preço da base com os 635
+grupamentos/desdobramentos anunciados, 283 pares casam em fator, e a distância entre
+aprovação e data ex se distribui assim: 5 casos antes da aprovação, 153 em até 7 dias, 11
+entre 8 e 30, **93 entre 31 e 60** (a segunda moda: AGE e ex um mês depois), 11 entre 61 e
+120, e 20 acima disso. O corte em 120 dias pega 263 dos 283 e corta a cauda onde o risco
+muda de natureza: a **RCSL3 agrupou em 2022 E em 2023**, e com janela de um ano o salto de
+10/07/2023 casava com o ato de 24/06/2022 — evento errado, fator errado.
+
+O fator do gabarito **substitui** a fração redonda tirada do preço, e isso não é cosmético:
+a **GFSA3 em 23/09/2022** agrupou 8,907:1, fator que não é fração simples. O detector por
+preço só sabia oferecer 1/9 ou 1/10; a CVM diz 0,112266 exato.
+
+#### 2. `Data_Autorizacao_Aprovacao` — a coluna que a ingestão jogava fora
+
+`ingest/capital_social.py` passou a guardar a data (e o valor do capital). Cada linha do
+capital social da CVM é um registro **datado**, não um número anual: o FRE de 2017 da COSAN
+LOG traz capital aprovado em 2014-10-01, 2016-05-10, 2017-03-17 e 2017-09-21.
+
+Com isso `master/eventos._razao_de_acoes` deixou de agregar por ano com
+`arg_max(qtd, Versao)` — desempate **arbitrário** em 13,0% dos pares empresa-ano, com até
+49 quantidades distintas no pior caso — e virou uma série point-in-time por CNPJ. A
+ambiguidade residual cai para **4,4% dos grupos (pior caso: 4 valores)**, e o que sobra é a
+mesma aprovação em versões diferentes do formulário, onde `arg_max` pela recência é
+desempate com critério.
+
+**E a data revelou um bug que a versão anual escondia.** Com a contagem datada, a janela
+de casamento passou a ser de dias — e uma janela simétrica de ±200 dias fazia uma emissão
+POSTERIOR confirmar um crash: a **TELB3 caiu 27% em 12/03/2020 (COVID)** e a Telebras
+emitiu +36,8% de ações em **14/04/2020**, um mês depois; a emissão confirmava o crash como
+desdobramento 4:3 e o pregão sumia da série ajustada. Mesmo padrão em LPSB3, TRIS3, FRAS3.
+A janela ficou assimétrica, a mesma do gabarito: **[−10, +120]**. Medido sobre os 413
+eventos que o preço prova sozinho, ela confirma 20 deles alcançando 32 candidatos
+duvidosos; abrir para [−200, +200] ganha 3 eventos certos e 18 duvidosos.
+
+#### O efeito somado das duas correções no painel
+
+| | antes (motor de 14/09) | **agora** |
+|---|---|---|
+| eventos ajustados | 2.716 | **2.717** |
+| eventos NOVOS | — | **39** (29 pelo gabarito da CVM) |
+| eventos que SAÍRAM | — | **38** |
+| confirmados pelo gabarito | — | 315 |
+| confirmados pela contagem datada | — | 152 |
+
+Os 39 que entraram incluem RENT3 (desdobramento 3:1 de 2007), TUPY3, LPSB3, KEPL3, TEND3,
+TRIS3, BIDI4, VULC3, LOGN3, ATOM3, MGEL4, CAMB4, RCSL3/4 (quatro vezes) e a **RLOG3**, que
+era o caso que abriu esta pendência: grupamento 4:1 não ajustado carregando **+372% de
+retorno mensal** em junho/2016 dentro do universo elegível.
+
+Os 38 que saíram são o achado que eu não esperava: **a contagem ANUAL de ações estava
+confirmando crashes como eventos.** Entre eles, **CVCB3 e IRBR3 em 12/03/2020** — o crash
+da COVID —, marcados como desdobramento 4:3 e apagados da série; e treze "desdobramentos
+2:1" da JBDU3/JBDU4 em 2013, que são um papel de centavos oscilando entre R$0,01 e R$0,02.
+
+**As travas do desenho continuam de pé**, verificadas uma a uma: PETR4 09/03/2020 (COVID,
+razão 1,4224), AMER3 12/01/2023 (−77%), PCAR3 01/03/2021 (cisão do Assai), NORD3
+11/01/2021 (squeeze) e AMBP3 05/08/2025 (−88%) seguem **descartados**, e nenhum tem
+confirmação do gabarito nem da contagem.
+
+**Validação externa (NEFIN), que é o juiz que não é nosso:** a melhor série (retorno total,
+ponderada por valor) mantém correlação **0,9924** e erro médio de **10,1 bps**, e o desvio
+do acumulado **melhorou de −29,3 p.p. para −28,0 p.p.** num acumulado de 820%.
+
+#### A BARRA: o benchmark não mudou; o momento mudou de lado
+
+| | 14/09 | **15/09 (base com gabarito)** |
+|---|---|---|
+| benchmark equal-weight | +6,4% / −3,4 pp / **−0,03** / R$ 38 mi | +6,3% / −3,5 pp / **−0,03** / R$ 38,2 mi |
+| momento 12-1 | +9,5% / −0,4 pp / 0,11 / R$ 6,9 mi | **+10,8% / +0,9 pp / 0,16** / R$ 6,9 mi |
+| reversão 1 mês | −14,3% / −24,2 pp / −0,64 | −14,2% / −24,0 pp / −0,63 |
+| armagedom defensivo | +7,4% / −2,9 pp / −0,09 | +7,5% / −2,7 pp / −0,08 |
+
+**A barra continua −0,03** — a quinta mudança não aconteceu, e isso também é resultado. O
+momento saiu de 0,4 p.p. abaixo do CDI para 0,9 p.p. acima, e a diferença veio inteira da
+base. Não promove nada: 0,9 p.p. com Sharpe 0,16 em 200 meses está dentro do erro padrão do
+Sharpe (±0,24 em 16,7 anos), e na grade de 24 variações o ponto da literatura (12-1, 20
+papéis, Sharpe 0,157) continua **abaixo da mediana (0,221)**.
+
+#### 4. Por que pulo 0 bate pulo 1 — respondido, e a resposta já estava na mesa
+
+`estrategias/horizonte_curto.py` (novo). Mede o spread transversal do sort de 1 mês
+(quintil de cima menos quintil de baixo, realizado no mês seguinte). Positivo =
+continuação; negativo = reversão.
+
+| corte | spread anual | t (Newey-West) | meses | acerto |
+|---|---|---|---|---|
+| tudo | **+15,1%** | 3,22 | 200 | 64,0% |
+| sobre o ponto médio (sem bid-ask bounce) | +15,3% | 3,39 | 200 | 63,0% |
+| primeira metade (até 2018-05) | +17,0% | 2,40 | 101 | 65,3% |
+| segunda metade | +13,1% | 2,03 | 99 | 62,6% |
+| terço mais líquido do universo negociável | +9,2% | 1,85 | 200 | 55,0% |
+| terço do meio | +21,4% | 3,51 | 200 | 62,0% |
+| terço menos líquido | +12,6% | 1,43 | 200 | 60,0% |
+
+**O horizonte de 1 mês tem CONTINUAÇÃO no Brasil, não reversão.** Por isso pular o mês
+recente PIORA o momento — o pulo joga fora sinal, não ruído. E é o mesmo fato que a família
+"reversão 1 mês" já gritava com Sharpe −0,63: comprar quem mais caiu perde 24 p.p. para o
+CDI porque quem caiu continua caindo. Duas leituras do mesmo fenômeno.
+
+**Não é artefato de microestrutura**: medido sobre o retorno do PONTO MÉDIO, que não tem
+bid-ask bounce, o número não muda (+15,3% contra +15,1%). Sobrevive às duas metades da
+amostra e aos três terços de liquidez. O custo de girar 12x ao ano no universo negociável
+é 3,6% a.a. contra um spread bruto de 15,1% — mas a perna vendida exigiria aluguel, que a
+base ainda não tem por papel.
+
+#### 3. A capacidade de R$ 6,9 milhões — e a tese de capital pequeno CONTRARIADA
+
+`estrategias/capacidade.py` (novo). R$6,9 milhões não é propriedade da estratégia: é
+consequência do piso de liquidez de R$500 mil/dia, porque a carteira de peso igual cabe no
+MENOS líquido que ela compra. A curva:
+
+| piso de liquidez | elegíveis/mês | momento: líquido | s/ CDI | sharpe | capacidade |
+|---|---|---|---|---|---|
+| R$ 100 mil | 178 | +7,8% | −2,0 pp | 0,03 | R$ 1,4 mi |
+| **R$ 500 mil (default)** | 146 | +10,8% | +0,9 pp | 0,16 | **R$ 6,9 mi** |
+| R$ 1 milhão | 134 | +10,8% | +0,9 pp | 0,16 | R$ 14,5 mi |
+| R$ 5 milhões | 106 | +10,8% | +1,0 pp | 0,16 | R$ 57,5 mi |
+| R$ 10 milhões | 87 | +11,0% | +1,2 pp | 0,16 | R$ 111,2 mi |
+| R$ 50 milhões | 42 | +11,5% | +2,3 pp | 0,21 | **R$ 535,9 mi** |
+
+**A capacidade multiplica por 78 e o retorno não cai — sobe.** O edge do momento NÃO mora
+no papel fino. Isso contraria a tese de que capital pequeno é a vantagem do projeto: pelo
+menos nesta família, o tamanho não é o que limita. O que o piso de R$500 mil estava
+comprando não era retorno, era um universo maior.
+
+**Três ressalvas, e elas não são decorativas.** (i) Com piso de R$50 milhões sobram 42
+elegíveis por mês e a carteira de 20 papéis vira metade do universo — perto de um índice de
+grandes, não de uma seleção. (ii) O benchmark PIORA com o piso alto (−0,03 → −0,17), então
+parte do ganho relativo do momento é o benchmark caindo, não a estratégia subindo.
+(iii) O armagedom na mesma tabela salta de −0,12 para +0,38 entre R$10 e R$50 milhões, de
+forma não monotônica — isso é instabilidade, e serve de contraexemplo dentro da própria
+tabela: em 42 papéis o resultado começa a ser sorteio. O momento, ao contrário, é estável
+(0,03 / 0,16 / 0,16 / 0,16 / 0,16 / 0,21).
+
+**São 18 tentativas novas no ledger só desta tabela.** Escolher o piso de R$50 milhões
+porque foi o melhor seria exatamente o erro que o ledger existe para impedir. A leitura
+certa é a forma da curva, não o seu máximo.
+
+#### 5. Base atualizada e commits
+
+Base: pregão de **14/09/2026** incorporado (1.485 linhas), painel reconstruído com
+**1.762.023 linhas**, `emissor_mensal` com 75.425.
+
+**Arquivos:** `ingest/eventos_cvm.py` (novo), `ingest/capital_social.py`,
+`master/eventos.py`, `estrategias/horizonte_curto.py` (novo),
+`estrategias/capacidade.py` (novo), `tests/test_deteccao_eventos.py` (+8 testes),
+`EQUIPE.md`, `REGISTRO.md`, `DIARIO.md`. Warehouse: `cvm_eventos_anunciados` (nova),
+`cvm_capital_social` recarregada, `acoes_diario` e `emissor_mensal` reconstruídos.
+
+**Resultado:** 116 testes passam. Ledger em 105+ tentativas.
+
+**Codex: a barra do benchmark continua −0,03.** O que mudou para você: (a) o momento agora
+está +0,9 p.p. acima do CDI, não abaixo; (b) o horizonte de 1 mês tem continuação, não
+reversão — qualquer sinal de curto prazo no Brasil tem que partir daí; (c) a capacidade de
+R$6,9 mi era do piso de liquidez, não da estratégia.

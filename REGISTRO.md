@@ -1413,6 +1413,21 @@ preve perfeitamente o mes CORRENTE nao pode lucrar, porque o motor usa o mes seg
 a contraprova: um sinal que ve o mes seguinte tem que render absurdamente -- senao o
 primeiro teste passaria por vacuidade.
 
+### 15/09/2026 - O gabarito da CVM entra no detector, e ele descobre um crash apagado
+
+As cinco pendencias abertas em 14/09 fechadas de uma vez. O coletor do gabarito de evento
+da CVM (`ingest/eventos_cvm.py`) e a data do capital social (`ingest/capital_social.py`)
+viraram codigo, e a combinacao dos dois revelou o item 36: a contagem ANUAL de acoes
+estava confirmando CRASH como evento -- o crash da COVID em CVCB3 e IRBR3, em 12/03/2020,
+estava sendo ajustado por 4/3 e apagado da serie. Detalhe completo na secao 6.
+
+O saldo no painel: 39 eventos entraram (29 confirmados pela CVM), 38 sairam. A barra do
+benchmark NAO mudou (-0,03); o momento saiu de 0,4 p.p. abaixo do CDI para 0,9 p.p. acima.
+Duas perguntas antigas foram respondidas com medida: o horizonte de 1 mes tem CONTINUACAO
+(+15,1% a.a. de spread, t = 3,22), que e por que pulo 0 bate pulo 1; e a capacidade de
+R$6,9 milhoes e consequencia do piso de liquidez, nao da estrategia -- com piso de R$50
+milhoes ela vai a R$536 milhoes sem custar retorno.
+
 ---
 
 ## 3. Estado atual da base
@@ -1422,8 +1437,10 @@ primeiro teste passaria por vacuidade.
 
 ### Tabela em uso: `acoes_diario`
 
-1.678.985 linhas, 1.129 papéis, 03/01/2005 a **09/09/2026**.
-Eventos de quantidade aplicados: **1.766 dias em 605 papéis** (09/09/2026).
+**1.762.023 linhas, 1.146 papéis, 03/01/2005 a 14/09/2026** (15/09/2026).
+Eventos de quantidade aplicados: **2.354 dias em 687 papéis**, sendo 315 confirmados pelo
+gabarito de evento da CVM (`cvm_eventos_anunciados`, 866 atos desde 2007) e 152 pela
+contagem DATADA de ações. O painel por emissor (`emissor_mensal`) tem 75.425 linhas.
 
 | Classe | Papéis | Linhas |
 |---|---|---|
@@ -1449,7 +1466,7 @@ Todo o resto foi excluído em 02/09/2026.
 
 ## 4. Inventário de código
 
-20 arquivos Python, ~2.500 linhas.
+26 arquivos Python. 116 testes passam (15/09/2026).
 
 | Arquivo | Função |
 |---|---|
@@ -1463,10 +1480,14 @@ Todo o resto foi excluído em 02/09/2026.
 | `ingest/base.py` | download com retry, checagem de JSON |
 | `ingest/canario.py` | verifica as fontes (roda no CI) |
 | `master/identidade.py` | securities master por CNPJ |
-| `master/eventos.py` | detector de evento corporativo |
+| `master/eventos.py` | detector de evento corporativo (preço + gabarito da CVM) |
+| `ingest/eventos_cvm.py` | gabarito de evento anunciado da CVM (866 atos, 2007–2022) |
+| `estrategias/alicerce.py` | a barra oficial e a grade do momento |
+| `estrategias/horizonte_curto.py` | mede continuação vs reversão no horizonte de 1 mês |
+| `estrategias/capacidade.py` | curva capacidade × piso de liquidez |
 | `master/precos.py` | três séries de preço |
 | `master/auditoria*.py`, `calibracao.py` | auditorias |
-| `tests/` | 20 testes |
+| `tests/` | 116 testes |
 
 ---
 
@@ -1675,6 +1696,96 @@ cru-vs-ajustado continua sendo medido na série equiponderada, que não depende 
 ponderação; a ponderada existe para o nível. Cobre 3.967 dos 5.324 pregões, porque valor de
 mercado exige a contagem da CVM, que começa em 2010.
 
+### Os itens 34 e 35 resolvidos, em 15/09/2026 — e a solução achou um terceiro bug
+
+Os dois achados de 14/09 viraram código: `ingest/eventos_cvm.py` (novo) carrega o gabarito
+e `ingest/capital_social.py` passou a guardar `Data_Autorizacao_Aprovacao`. O que não
+estava previsto é o que apareceu no meio.
+
+| # | Achado |
+|---|---|
+| 36 | **A contagem ANUAL de ações estava confirmando CRASH como evento.** Com a contagem datada, a janela de casamento virou de dias — e com janela simétrica de ±200 dias uma emissão POSTERIOR passou a confirmar uma queda anterior. Caso concreto: a **TELB3 caiu 27% em 12/03/2020** (COVID) e a Telebras emitiu +36,8% de ações em **14/04/2020**; a emissão confirmava o crash como desdobramento 4:3 e o pregão sumia da série ajustada. Mesmo padrão em LPSB3 (16/03/2020), TRIS3 (18/03/2020) e FRAS3. Na versão ANUAL o mesmo mecanismo já operava, e pegou **CVCB3 e IRBR3 em 12/03/2020** — as duas estavam sendo ajustadas por 4/3, ou seja, o crash da COVID apagado da série de duas empresas. A correção é a janela assimétrica **[−10, +120] dias**: ato aprovado DEPOIS do pregão não pode explicar o pregão |
+
+**A janela é medida, não arbitrada.** Cruzando os 9.631 saltos de preço com os 635
+grupamentos/desdobramentos anunciados, 283 pares casam em fator; 153 deles têm data ex em
+até 7 dias da aprovação e 93 entre 31 e 60 dias (a AGE e o ex um mês depois). O corte em
+120 dias pega 263 dos 283 e elimina a cauda perigosa: a **RCSL3 agrupou em 2022 E em
+2023**, e com janela de um ano o salto de 10/07/2023 casava com o ato de 24/06/2022.
+
+**O que mudou no painel, medido contra o detector de 14/09:**
+
+| | antes | depois |
+|---|---|---|
+| eventos ajustados | 2.716 | 2.717 |
+| entraram | — | **39** (29 confirmados pelo gabarito da CVM) |
+| saíram | — | **38** (entre eles CVCB3 e IRBR3 no crash da COVID, e 13 falsos "2:1" da JBDU3/4 em 2013, papel de centavos oscilando entre R$0,01 e R$0,02) |
+| confirmados pelo gabarito | — | 315 |
+| confirmados pela contagem datada | — | 152 |
+
+**Ambiguidade da contagem de ações, antes e depois de datar:** 13,0% dos pares empresa-ano
+tinham mais de uma quantidade distinta (pior caso 49 valores); por (CNPJ, data de
+aprovação) sobram **4,4% (pior caso 4)**, e o resíduo é a mesma aprovação declarada em
+versões diferentes do formulário.
+
+**O gabarito também corrige o FATOR, não só a existência do evento.** A **GFSA3 em
+23/09/2022** agrupou **8,907:1** — fator que não é fração simples. O detector por preço só
+sabia oferecer 1/9 ou 1/10; a CVM publica 0,112266 exato.
+
+**Uma linha das 866 foi descartada por data impossível:** VIVER INCORPORADORA com aprovação
+em **2077-03-08** (grupamento 3:1, provavelmente 2017). A regra é `year(data_aprovacao) <=
+ano_fre` — um ato não pode ser aprovado depois do formulário que o declara. O dado continua
+na tabela como veio; só não é usado. Auditoria mede, não conserta.
+
+**Limite de cobertura do gabarito:** o bloco desaparece do FRE a partir de 2023 (2 linhas em
+2023, zero de 2024 em diante). Ele cobre 2007–2022; em 2005–2006 e de 2023 para frente,
+vale só o detector por preço.
+
+**As travas do desenho continuam de pé**, verificadas uma a uma depois da mudança: PETR4
+09/03/2020, AMER3 12/01/2023, PCAR3 01/03/2021, NORD3 11/01/2021 e AMBP3 05/08/2025 seguem
+`descartado`, sem confirmação do gabarito nem da contagem.
+
+**Juiz externo:** contra o fator de mercado do NEFIN, a melhor série mantém correlação
+0,9924 e erro médio de 10,1 bps, e o desvio do acumulado **melhora de −29,3 p.p. para
+−28,0 p.p.**
+
+### O horizonte de 1 mês: continuação, não reversão (15/09/2026)
+
+Pendência nº4 de 14/09 ("pulo 0 bate pulo 1, contra a teoria"). Respondida com
+`estrategias/horizonte_curto.py`: o spread transversal do sort de 1 mês (quintil de cima
+menos o de baixo, realizado no mês seguinte) é **+15,1% ao ano, t de Newey-West 3,22, em
+200 meses, com acerto de 64%**. Positivo significa CONTINUAÇÃO.
+
+Por isso pular o mês recente piora o momento: o pulo joga fora sinal, não ruído. E é o
+mesmo fato que a família "reversão 1 mês" já dizia com Sharpe −0,63.
+
+**Não é artefato de microestrutura**, e essa é a checagem que importa: medido sobre o
+retorno do PONTO MÉDIO — que não tem bid-ask bounce — o spread é +15,3%, praticamente
+idêntico. Sobrevive às duas metades da amostra (+17,0% e +13,1%) e aos três terços de
+liquidez do universo negociável (+9,2%, +21,4%, +12,6%).
+
+### A tese de capital pequeno, contrariada pela própria curva (15/09/2026)
+
+Pendência nº3. `estrategias/capacidade.py` varre o piso de liquidez e mostra que os R$6,9
+milhões de capacidade do momento **não são propriedade da estratégia**: são consequência do
+piso de R$500 mil/dia, porque a carteira de peso igual cabe no menos líquido que compra.
+
+| piso | elegíveis/mês | momento líquido | s/ CDI | sharpe | capacidade |
+|---|---|---|---|---|---|
+| R$ 100 mil | 178 | +7,8% | −2,0 pp | 0,03 | R$ 1,4 mi |
+| R$ 500 mil | 146 | +10,8% | +0,9 pp | 0,16 | R$ 6,9 mi |
+| R$ 1 mi | 134 | +10,8% | +0,9 pp | 0,16 | R$ 14,5 mi |
+| R$ 5 mi | 106 | +10,8% | +1,0 pp | 0,16 | R$ 57,5 mi |
+| R$ 10 mi | 87 | +11,0% | +1,2 pp | 0,16 | R$ 111,2 mi |
+| R$ 50 mi | 42 | +11,5% | +2,3 pp | 0,21 | R$ 535,9 mi |
+
+**A capacidade multiplica por 78 e o retorno sobe.** O edge do momento não mora no papel
+fino. Ressalvas que vão junto e não são decorativas: com piso de R$50 milhões sobram 42
+elegíveis e 20 papéis viram metade do universo; o benchmark PIORA com piso alto (−0,03 →
+−0,17), então parte do ganho relativo é o benchmark caindo; e o armagedom na mesma tabela
+salta de −0,12 para +0,38 de forma não monotônica, o que é instabilidade e serve de
+contraexemplo dentro da própria tabela. São 18 tentativas novas no ledger: a leitura certa
+é a forma da curva, não o seu máximo.
+
 ---
 
 ## 7. O que está planejado
@@ -1682,7 +1793,9 @@ mercado exige a contagem da CVM, que começa em 2010.
 ### Imediato
 
 - Manter este documento a cada avanço
-- Usar `acoes_diario` para as primeiras análises (aguardando o João dizer quais)
+- ~~Usar `acoes_diario` para as primeiras análises~~ — feito: o alicerce roda desde 10/09
+- **Coletor de aluguel por papel (arquivo BTB da B3)**, que é o que falta para testar
+  qualquer coisa vendida — inclusive a perna curta da continuação de 1 mês medida em 15/09
 
 ### Fase 2 — Protocolo de research
 
@@ -1731,12 +1844,16 @@ CVM. Até lá, capital próprio. Clube de investimento é o caminho intermediár
 
 ## 8. Decisões pendentes do João
 
+**Atualizada em 15/09/2026.** As pendências 2, 3 e 4 da lista antiga saíram: as tabelas
+inertes foram apagadas em 02/09, o repositório tem doze commits e é público desde 10/09, e
+a análise deixou de ser pergunta aberta quando o alicerce entrou.
+
 | # | Pendência | Contexto |
 |---|---|---|
-| 1 | **209 emissores sem vínculo CNPJ** | 20% dos pregões de ação, incluindo CSNA3, KLBN4, VALE5. Casar por nome erraria (`KLABIN S/A` casa com três empresas, duas canceladas). Revisão manual uma vez, congelada em crosswalk versionado |
-| 2 | **Apagar ou não as tabelas inertes** | Ganho seria só disco |
-| 3 | **Primeiro commit** | Repo tem `git init`, zero commits, esperando OK |
-| 4 | **Qual análise fazer com `acoes_diario`** | Base pronta e atualizando sozinha |
+| 1 | **209 emissores sem vínculo CNPJ** | 20% dos pregões de ação, incluindo CSNA3, KLBN4, VALE5. Casar por nome erraria (`KLABIN S/A` casa com três empresas, duas canceladas). Revisão manual uma vez, congelada em crosswalk versionado. **Continua aberta** — é a única das originais que sobrou |
+| 2 | **Qual piso de liquidez o fundo usa** | Nova, e é decisão de alocação, não de código. A curva de `estrategias/capacidade.py` mostra que subir o piso de R$500 mil para R$50 milhões multiplica a capacidade por 78 e não custa retorno no momento. Mas em 42 elegíveis a carteira de 20 papéis vira meio universo. O default do motor continua R$500 mil até você decidir |
+| 3 | **Sinal de curto prazo, agora que o horizonte de 1 mês está medido** | A continuação de 1 mês rende +15,1% a.a. bruto no spread de quintis, com t de 3,22, e não é bid-ask bounce. A perna vendida exigiria aluguel por papel (arquivo BTB da B3, que a base não tem); só comprado, é uma família nova a testar. Não fiz: seria estratégia nova, e isso é decisão sua |
+| 4 | **Dado contábil destravaria ~32% mais papers da SSRN** | Pendência antiga, continua de pé |
 
 ### Correções conhecidas, mecânicas, ainda não feitas
 

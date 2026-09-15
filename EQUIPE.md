@@ -74,21 +74,28 @@ como retorno de quatro dígitos (PDGR3 +4.170%, IRBR3 +2.938%, BHIA3 +2.007%). Q
 três linhas em 31.915 carregavam o excesso sobre o CDI inteiro. O detalhe está no
 `DIARIO.md`, entrada de 11/09 13:40, e em `REGISTRO.md` seção 6.
 
-Números atuais, sobre a base corrigida e **com o motor corrigido em 14/09/2026** — 200
-meses (2010–2026), 20 papéis, líquido de custo, filtro de R$500 mil/dia. Reproduzíveis com
-`python -m estrategias.alicerce`:
+Números atuais, sobre a base **com o gabarito de evento da CVM aplicado em 15/09/2026** —
+200 meses (2010–2026), 20 papéis, líquido de custo, filtro de R$500 mil/dia. Reproduzíveis
+com `python -m estrategias.alicerce`:
 
 | | retorno líquido | acima do CDI | Sharpe (vs CDI) | max DD | giro | capacidade |
 |---|---|---|---|---|---|---|
-| benchmark equal-weight | +6,4% | **−3,4 p.p.** | **−0,03** | −46,5% | 7%/mês | R$ 38 mi |
-| momento 12-1 | +9,5% | −0,4 p.p. | 0,11 | −46,4% | 29%/mês | **R$ 6,9 mi** |
-| reversão 1 mês | −14,3% | −24,2 p.p. | −0,64 | −95,2% | 84%/mês | R$ 6,1 mi |
-| armagedom defensivo | +7,4% | −2,9 p.p. | −0,09 | **−30,9%** | 26%/mês | R$ 6,9 mi |
+| benchmark equal-weight | +6,3% | **−3,5 p.p.** | **−0,03** | −46,4% | 7%/mês | R$ 38,2 mi |
+| momento 12-1 | +10,8% | **+0,9 p.p.** | **0,16** | −44,3% | 29%/mês | **R$ 6,9 mi** |
+| reversão 1 mês | −14,2% | −24,0 p.p. | −0,63 | −94,9% | 84%/mês | R$ 6,1 mi |
+| armagedom defensivo | +7,5% | −2,7 p.p. | −0,08 | **−30,6%** | 26%/mês | R$ 6,9 mi |
 
-**NENHUMA DAS TRÊS BATE O CDI.** Em 11/09 o momento aparecia 2,4 p.p. acima; com os quatro
-achados do Codex corrigidos (custo de rebalanceamento, custo por ordem em vez da mediana,
-capacidade pelo gargalo, seleção que não depende do futuro) ele fica 0,4 p.p. abaixo. O
-detalhe está no `DIARIO.md`, entrada de 14/09.
+**A barra do benchmark NÃO mudou: continua −0,03.** O que mudou foi o momento, e por um
+motivo de base, não de estratégia: 39 eventos de quantidade que ninguém ajustava entraram
+no painel (29 deles confirmados pelo gabarito da CVM, ver `DIARIO.md` de 15/09) e 38
+"eventos" que a contagem anual de ações confirmava por acaso saíram — entre eles o crash
+da COVID em CVCB3 e IRBR3, que estava sendo apagado da série como se fosse desdobramento
+4:3. Com a base limpa o momento sai de 0,4 p.p. abaixo do CDI para **0,9 p.p. acima**.
+
+**Isso não promove o momento a estratégia.** 0,9 p.p. acima do CDI com Sharpe 0,16, em 200
+meses, está dentro do erro padrão do próprio Sharpe (±0,24 para 16,7 anos), e o ponto
+12-1 continua abaixo da mediana da grade de 24 variações. O que mudou é que ele deixou de
+estar do lado errado do CDI.
 
 **Duas coisas que mudaram de significado e não são comparáveis com números antigos:**
 
@@ -100,6 +107,25 @@ detalhe está no `DIARIO.md`, entrada de 14/09.
 **A barra a usar é −0,03.** Qualquer estratégia, ortodoxa ou alternativa, compara com ela —
 e quem não bater o CDI (9,8% no período) não é estratégia, por melhor que seja o Sharpe
 relativo.
+
+### O horizonte de 1 mês tem CONTINUAÇÃO, não reversão (medido em 15/09/2026)
+
+Vale para quem for desenhar sinal de curto prazo, e contraria a literatura importada.
+`python -m estrategias.horizonte_curto` mede o spread transversal do sort de 1 mês
+(quintil de cima menos quintil de baixo, realizado no mês seguinte):
+
+| corte | spread anual | t (Newey-West) | meses |
+|---|---|---|---|
+| tudo | **+15,1%** | 3,22 | 200 |
+| retorno do ponto médio (sem bid-ask bounce) | +15,3% | 3,39 | 200 |
+| primeira metade (até 2018-05) | +17,0% | 2,40 | 101 |
+| segunda metade | +13,1% | 2,03 | 99 |
+| terço mais líquido do universo negociável | +9,2% | 1,85 | 200 |
+
+O sinal é positivo: **o que subiu no mês passado continua subindo.** É o mesmo fato que a
+família "reversão 1 mês" já dizia com Sharpe −0,63, e explica por que **pulo 0 bate pulo 1**
+em 9 dos 12 pares da grade do momento. Não é artefato de microestrutura — medido sobre o
+ponto médio (que não tem bid-ask bounce) o número não muda.
 
 ### As regras de convivência
 
