@@ -1170,3 +1170,85 @@ barra.
 
 **Codex: a barra mudou de novo. Use −0,12 com piso de R$ 50 mil, e compare sempre no mesmo
 piso** — Sharpe medido em universos diferentes não é comparável.
+
+### 2026-09-16 — claude — A continuação de 1 mês morre no custo, e o BTB da B3 sumiu da web
+
+**Pedido:** "continue".
+
+**Feito:** três coisas, na ordem em que uma puxou a outra.
+
+#### 1. A grade do momento refeita no piso novo
+
+`python -m estrategias.alicerce --momento` com o piso de R$ 50 mil:
+
+| | piso R$ 500 mil | **piso R$ 50 mil** |
+|---|---|---|
+| Sharpe mínimo | −0,110 | **−0,522** |
+| mediana | 0,185 | **−0,059** |
+| máximo | 0,338 | **0,150** |
+| batem o CDI | 15 de 24 | **1 de 24** |
+
+Uma de 24 bate o CDI (12-0 × 40 papéis, +0,99 p.p.). O custo médio das variações vai de
+1,7–4,8% para **3,9–10,1% ao ano**. Pulo 0 continua batendo pulo 1, agora em **10 dos 12
+pares**. Registrado em `MORTAS.md` seção 7.
+
+#### 2. A continuação de 1 mês: do bruto ao líquido — e ela morre
+
+Ontem eu publiquei o spread bruto e uma estimativa de custo. A estimativa estava **errada
+para menos**, e o conserto muda o veredito:
+
+| | resultado | t (Newey-West) | acerto |
+|---|---|---|---|
+| bruto | +13,4% a.a. | 3,17 | 62,5% |
+| menos custo de negociação | **−9,4% a.a.** | −2,13 | 46,0% |
+| menos custo e aluguel | **−10,7% a.a.** | −2,45 | 45,0% |
+
+**O erro de ontem:** usei `spread_mediano` do universo (0,40%) e multipliquei por 12,
+chegando a "3,6% a.a. de custo contra 15,1% de spread bruto". Mas a carteira não compra o
+papel mediano do universo — compra os extremos do sort, que são mais caros —, e um
+long-short paga ida e volta nas **duas** pernas. Cobrando o `custo_roundtrip` de cada papel
+que entra: **1,90% ao mês, 22,8% ao ano.** Seis vezes o que eu tinha escrito, e 9 pontos
+acima do spread bruto. Não há refinamento de sinal que cubra isso.
+
+O aluguel é o menor dos problemas: 1,65% a.a. (NEFIN, agregado, 163 dos 200 meses). Mas é
+**piso**, não estimativa — a perna vendida de um sort de perdedores aluga justamente o que
+caiu, onde o aluguel escasseia e encarece.
+
+**O que sobrevive disso não é a estratégia, é o fato**: o mês recente carrega continuação,
+não reversão, e isso explica dois resultados que já estavam na mesa (pulo 0 > pulo 1, e a
+família reversão perdendo 28 p.p. para o CDI). `MORTAS.md` seção 6.
+
+**E ele não mora na cauda ilíquida** — terço menos líquido: +7,8% a.a., t de 0,95; terço
+mais líquido: +13,0%, t de 2,68. Quem procurasse o efeito onde "instituição não olha"
+procuraria no lugar errado.
+
+#### 3. O arquivo BTB da B3: procurado, não encontrado
+
+Era o item "imediato" do REGISTRO seção 7 — a taxa de aluguel POR PAPEL, que é o que falta
+para medir qualquer perna vendida de verdade. Procurei e **não existe mais em fonte
+pública pelos caminhos conhecidos**:
+
+- `bvmf.bmfbovespa.com.br/BancoTitulosBTC/ArquivoPosicoesEmAberto.aspx` → 302 para página
+  de erro ("PagNaoEnc");
+- o portal `arquivos.b3.com.br` responde e serve arquivos (testado: a API aceita
+  `TradeInformationConsolidatedFile` e `InstrumentsConsolidatedFile`), mas **nenhum nome
+  de arquivo de empréstimo** passa: `LendingOpenPositionFile`,
+  `SecurityLendingOpenPositionFile`, `BTBOpenPositionFile` e mais quatro variantes devolvem
+  HTTP 400;
+- `sistemaswebb3-listados.b3.com.br/securityLending*` → 404;
+- as páginas de produto da B3 (`emprestimo-de-ativos/renda-variavel/posicoes-em-aberto`) e
+  o Hub de Dados Públicos devolvem erro 500 ou não listam o arquivo de renda variável.
+
+**Não construí coletor nenhum**, e não vou inventar URL. O que existe na base continua
+sendo o agregado do NEFIN (`nefin_loan_fee`, `nefin_short_interest`,
+`nefin_days_to_cover`), que serve de piso e não de medida. Fica registrado com o que foi
+tentado, para ninguém refazer a busca do zero.
+
+**Arquivos:** `estrategias/horizonte_curto.py` (funções `taxa_de_aluguel` e `custo_mensal`),
+`estrategias/MORTAS.md` (seções 6 e 7, e a barra do topo atualizada para o piso novo),
+`EQUIPE.md`, `REGISTRO.md`, `DIARIO.md`.
+
+**Resultado:** 116 testes passam. A barra segue **−0,12** com piso de R$ 50 mil.
+
+**Codex:** a continuação de 1 mês está morta como estratégia long-short — não a retome sem
+uma fonte de aluguel por papel e um giro menor. O fato (continuação, não reversão) vale.

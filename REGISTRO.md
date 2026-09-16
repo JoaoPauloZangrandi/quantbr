@@ -1797,8 +1797,15 @@ contraexemplo dentro da própria tabela. São 18 tentativas novas no ledger: a l
 
 - Manter este documento a cada avanço
 - ~~Usar `acoes_diario` para as primeiras análises~~ — feito: o alicerce roda desde 10/09
-- **Coletor de aluguel por papel (arquivo BTB da B3)**, que é o que falta para testar
-  qualquer coisa vendida — inclusive a perna curta da continuação de 1 mês medida em 15/09
+- ~~**Coletor de aluguel por papel (arquivo BTB da B3)**~~ — **BLOQUEADO em 16/09/2026: a
+  fonte pública não foi encontrada.** O endpoint antigo
+  (`bvmf.bmfbovespa.com.br/BancoTitulosBTC/ArquivoPosicoesEmAberto.aspx`) redireciona para
+  página de erro; o portal `arquivos.b3.com.br` funciona mas rejeita (HTTP 400) os sete
+  nomes de arquivo de empréstimo testados, enquanto aceita
+  `TradeInformationConsolidatedFile`; `sistemaswebb3-listados.b3.com.br/securityLending*`
+  devolve 404; e as páginas de produto da B3 e o Hub de Dados Públicos devolvem erro 500 ou
+  não listam o arquivo de renda variável. Sem fonte, sem coletor — o que a base tem é o
+  agregado do NEFIN, que é **piso** do custo da perna vendida, não medida dele
 
 ### Fase 2 — Protocolo de research
 

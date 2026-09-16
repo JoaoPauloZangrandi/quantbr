@@ -110,8 +110,10 @@ da COVID em CVCB3 e IRBR3, que estava sendo apagado da série como se fosse desd
 
 **Isso não promove o momento a estratégia.** 0,9 p.p. acima do CDI com Sharpe 0,16, em 200
 meses, está dentro do erro padrão do próprio Sharpe (±0,24 para 16,7 anos), e o ponto
-12-1 continua abaixo da mediana da grade de 24 variações. O que mudou é que ele deixou de
-estar do lado errado do CDI.
+12-1 continua abaixo da mediana da grade de 24 variações **medida no piso de R$ 500 mil**.
+O que mudou é que ele deixou de estar do lado errado do CDI — e o piso novo o devolveu para
+lá (ver a tabela do piso, acima, e `MORTAS.md` seção 7: no piso de R$ 50 mil, **1 de 24**
+variações bate o CDI, contra 15 de 24 no piso anterior).
 
 **Duas coisas que mudaram de significado e não são comparáveis com números antigos:**
 
@@ -146,7 +148,22 @@ ou seja, **descer o piso enfraqueceu o efeito em vez de reforçá-lo** — a cau
 tem MENOS continuação, não mais (t de 0,95 no terço de baixo). A segunda metade da amostra
 fica com t de 1,55: o efeito existe nas duas, mas não é significativo sozinho na recente.
 
-O sinal é positivo: **o que subiu no mês passado continua subindo.** É o mesmo fato que a
+**E ele morre no custo, medido em 16/09/2026.** O spread bruto é +13,4% a.a.; a ida e
+volta das DUAS pernas, cobrando o `custo_roundtrip` de cada papel que entra na carteira
+(não a mediana do universo, que subestimava), dá **1,90% ao mês — 22,8% ao ano**:
+
+| | resultado | t |
+|---|---|---|
+| bruto | +13,4% a.a. | 3,17 |
+| menos custo de negociação | **−9,4% a.a.** | −2,13 |
+| menos custo e aluguel (NEFIN, agregado) | **−10,7% a.a.** | −2,45 |
+
+Registrado em `estrategias/MORTAS.md` seção 6. **Correção de um número que publiquei aqui
+em 15/09:** eu tinha escrito "custo de 3,6% a.a. contra spread bruto de 15,1%" usando o
+spread mediano do universo. O custo certo é o dos papéis que a carteira de fato compra, e
+ele é 6 vezes maior.
+
+O sinal bruto é positivo: **o que subiu no mês passado continua subindo.** É o mesmo fato que a
 família "reversão 1 mês" já dizia com Sharpe −0,63, e explica por que **pulo 0 bate pulo 1**
 em 9 dos 12 pares da grade do momento. Não é artefato de microestrutura — medido sobre o
 ponto médio (que não tem bid-ask bounce) o número não muda.

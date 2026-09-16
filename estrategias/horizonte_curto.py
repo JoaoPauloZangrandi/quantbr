@@ -53,7 +53,7 @@ def painel() -> pd.DataFrame:
     with warehouse.connect(read_only=True) as con:
         d = con.execute(f"""
             SELECT cnpj, ano_mes, retorno_total, retorno_mid, volume_mediano,
-                   valor_mercado_empresa, spread_mediano
+                   valor_mercado_empresa, spread_mediano, custo_roundtrip
             FROM emissor_mensal
             WHERE ano_mes >= '{MES_INICIAL}'
             ORDER BY cnpj, ano_mes
@@ -101,6 +101,47 @@ def spread(d: pd.DataFrame, coluna_sinal: str = "retorno_total",
     return pd.Series(saida).sort_index()
 
 
+def taxa_de_aluguel() -> pd.Series:
+    """Taxa media de aluguel do mercado, por mes, em fracao ao ano. Fonte: NEFIN.
+
+    E AGREGADA, e isso e um limite que muda a conclusao, nao um detalhe. A perna vendida
+    de um sort de perdedores nao aluga o papel medio do mercado: aluga justamente o que
+    caiu, que e onde o aluguel escasseia e encarece. A taxa por papel exige o arquivo BTB
+    diario da B3, que a base ainda nao tem -- entao o numero daqui e um PISO do custo.
+    """
+    with warehouse.connect(read_only=True) as con:
+        if not warehouse.table_exists(con, "nefin_loan_fee"):
+            return pd.Series(dtype=float)
+        d = con.execute("""
+            SELECT strftime(data, '%Y-%m') AS ano_mes,
+                   median(average_loan_fee) / 100.0 AS taxa
+            FROM nefin_loan_fee GROUP BY 1 ORDER BY 1
+        """).df()
+    return d.set_index("ano_mes")["taxa"]
+
+
+def custo_mensal(d: pd.DataFrame, coluna_sinal: str = "retorno_total") -> pd.Series:
+    """Custo de rodar o spread por um mes: ida e volta das DUAS pernas.
+
+    O sort de 1 mes se refaz todo mes por construcao, entao o giro e de 100% ao mes em
+    cada perna. Cada papel paga o `custo_roundtrip` dele -- spread medido daquele papel
+    naquele mes mais tarifa --, nao uma media do universo: o quintil dos perdedores e mais
+    caro de negociar que o universo, e usar a mediana esconderia exatamente isso.
+    """
+    d = d.dropna(subset=[coluna_sinal, "custo_roundtrip"]).copy()
+    d = d[(d["volume_mediano"] >= LIQUIDEZ_MINIMA)
+          & (d["liquidez_prox"].fillna(0) >= LIQUIDEZ_MINIMA)]
+    saida = {}
+    for mes, g in d.groupby("ano_mes"):
+        if len(g) < 2 * N_QUINTIS:
+            continue
+        q = pd.qcut(g[coluna_sinal].rank(method="first"), N_QUINTIS, labels=False)
+        alto = g.loc[q == N_QUINTIS - 1, "custo_roundtrip"].mean()
+        baixo = g.loc[q == 0, "custo_roundtrip"].mean()
+        saida[mes] = alto + baixo
+    return pd.Series(saida).sort_index()
+
+
 def _linha(nome: str, s: pd.Series) -> str:
     if s.dropna().empty:
         return f"{nome:<34} (sem meses)"
@@ -141,10 +182,25 @@ def relatorio() -> str:
         linhas.append(_linha(nome, spread(d[faixa])))
     linhas.append("")
 
-    # O custo e que decide se isso vira estrategia. Giro de 12x ao ano no quintil.
-    custo = d.groupby("ano_mes")["spread_mediano"].median().mean()
-    linhas.append(f"spread mediano tipico do universo: {custo:.2%} "
-                  f"(ida e volta 12x ao ano = {12 * custo:.1%} a.a. de custo)")
+    # O CUSTO E QUE DECIDE SE ISSO VIRA ESTRATEGIA, e ate aqui so o bruto foi medido.
+    linhas.append("DO BRUTO AO LIQUIDO (long-short, giro de 100% ao mes nas duas pernas)")
+    custo = custo_mensal(painel())
+    aluguel = taxa_de_aluguel()
+    comum = s.index.intersection(custo.index)
+    bruto = s.reindex(comum)
+    c = custo.reindex(comum)
+    # Aluguel incide so na perna vendida, e so nos meses em que a serie do NEFIN existe.
+    a = (aluguel.reindex(comum) / 12).fillna(0.0)
+    linhas.append(_linha("  bruto", bruto))
+    linhas.append(_linha("  menos custo de negociacao", bruto - c))
+    linhas.append(_linha("  menos custo e aluguel", bruto - c - a))
+    linhas.append(f"  ida e volta das duas pernas: {c.mean():.2%}/mes "
+                  f"({12 * c.mean():.1%} a.a.)")
+    if not aluguel.empty:
+        cobertos = int(aluguel.reindex(comum).notna().sum())
+        linhas.append(f"  aluguel medio do mercado (NEFIN): {aluguel.mean():.2%} a.a., "
+                      f"em {cobertos} dos {len(comum)} meses -- taxa AGREGADA, "
+                      f"e portanto um PISO do custo da perna vendida")
     return "\n".join(linhas)
 
 

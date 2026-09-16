@@ -13,12 +13,17 @@ desaparece. O ledger completo de tentativas, com parâmetros, fica em
 ## O que qualquer estratégia precisa bater
 
 O **null certo** não é zero, nem o CDI sozinho: é comprar todo o universo líquido em peso
-igual e segurar. Medido em 200 meses (2010–2026), com custo, filtro de R$500 mil/dia de
-liquidez e retorno total, **com o motor corrigido em 14/09/2026**:
+igual e segurar. Medido em 200 meses (2010–2026), com custo e retorno total, **com a base
+limpa pelo gabarito da CVM (15/09/2026)** e **com o piso de liquidez de R$ 50 mil, que é o
+default do motor desde 15/09/2026**:
 
 | | retorno líquido | acima do CDI | Sharpe (vs CDI) | max drawdown | giro |
 |---|---|---|---|---|---|
-| **benchmark equal-weight** | **+6,4% a.a.** | **−3,4 p.p.** | **−0,03** | −46,5% | 7%/mês |
+| **benchmark equal-weight** | **+4,3% a.a.** | **−5,5 p.p.** | **−0,12** | −48,3% | 8%/mês |
+
+**O piso de liquidez faz parte da barra, e mudá-lo muda a barra.** Com o piso anterior de
+R$ 500 mil o mesmo benchmark dá +6,3% e Sharpe −0,03. Sharpe medido em universos diferentes
+não é comparável: sempre diga o piso junto do número.
 
 Essa é a barra, e ela tem duas faces: um resultado abaixo dela é pior do que não ter feito
 nada, mas **ela mesma perde do CDI** — o universo líquido em peso igual rendeu menos que
@@ -262,3 +267,70 @@ a correção por número de tentativas passa a ser obrigatória — o ledger em
 holding médio de poucos meses e um mercado que teve dois ou três regimes no período, o
 número de apostas verdadeiramente independentes está mais perto de algumas dezenas do que
 de duzentas.
+
+---
+
+## 6. Continuação de 1 mês long-short — MORTA NO CUSTO, e morre de longe
+
+**Testada em** 16/09/2026, com `python -m estrategias.horizonte_curto`. Nasceu da
+pendência nº4 de 14/09 ("pulo 0 bate pulo 1"), e a investigação achou um efeito forte:
+**o horizonte de 1 mês no Brasil tem CONTINUAÇÃO, não reversão.**
+
+O spread transversal do sort de 1 mês (quintil de cima menos o de baixo, realizado no mês
+seguinte), com piso de liquidez de R$ 50 mil:
+
+| | spread | t (Newey-West) | acerto |
+|---|---|---|---|
+| **bruto** | **+13,4% a.a.** | **3,17** | 62,5% |
+| menos custo de negociação | **−9,4% a.a.** | −2,13 | 46,0% |
+| menos custo e aluguel | **−10,7% a.a.** | −2,45 | 45,0% |
+
+**O custo não arranha o efeito: ele o engole e sobra fome.** Ida e volta das duas pernas,
+com o `custo_roundtrip` de cada papel que entra na carteira (não a mediana do universo),
+dá **1,90% ao mês — 22,8% ao ano**. Contra 13,4% de spread bruto. Não há refinamento de
+sinal que cubra 9 pontos de diferença.
+
+**O aluguel é o menor dos problemas, e ainda assim é piso.** A taxa média do mercado
+(NEFIN, agregada) é de 1,65% ao ano, cobrindo 163 dos 200 meses. Mas a perna vendida de um
+sort de perdedores não aluga o papel médio do mercado: aluga justamente o que caiu, que é
+onde o aluguel escasseia e encarece. O número real é maior, e a taxa por papel exige o
+arquivo BTB diário da B3 — que a base **ainda não tem**, e que em 16/09/2026 não foi
+encontrada em fonte pública (ver `REGISTRO.md`, seção 7).
+
+**O que fica vivo disso, e não é a estratégia:** o fato de que o mês recente carrega
+continuação, e não reversão, **explica dois resultados que já estavam na mesa** — por que
+pular o mês recente piora o momento (pulo 0 bate pulo 1 em 10 dos 12 pares da grade) e por
+que a família "reversão 1 mês" perde 28 p.p. para o CDI. É informação de desenho de sinal,
+não estratégia.
+
+**Onde ele NÃO mora:** no papel fino. O terço menos líquido do universo negociável tem o
+menor spread (+7,8% a.a., t de 0,95) e o terço mais líquido tem +13,0% com t de 2,68. Quem
+fosse procurar o efeito na cauda ilíquida — o lugar natural para "o que instituição não
+olha" — procuraria no lugar errado.
+
+**O que não foi testado**, e poderia mudar o veredito: a versão **só comprada** (metade do
+custo, sem aluguel, mas carregando o beta de mercado inteiro) e horizontes de rebalanceamento
+mais longos, que diluem o custo ao preço de diluir o sinal.
+
+---
+
+## 7. A grade do momento com piso de R$ 50 mil — 16/09/2026
+
+A seção 5 mediu as 24 variações com piso de liquidez de R$ 500 mil. Com o piso em R$ 50
+mil (decisão do João em 15/09/2026), a mesma grade:
+
+| | piso R$ 500 mil | **piso R$ 50 mil** |
+|---|---|---|
+| Sharpe mínimo | −0,110 | **−0,522** |
+| mediana | 0,185 | **−0,059** |
+| máximo | 0,338 | **0,150** |
+| benchmark | −0,03 | **−0,12** |
+| batem o CDI | 15 de 24 | **1 de 24** |
+
+**Uma de vinte e quatro bate o CDI** (12-0 × 40 papéis, +0,99 p.p.), contra quinze no piso
+anterior. Não é que as estratégias pioraram: é que o universo ficou mais caro. O custo
+médio das variações vai de 1,7–4,8% para **3,9–10,1% ao ano**, e o pior caso (3-1 × 10
+papéis) paga 10,1% de custo para render −9,8%.
+
+**O que se manteve idêntico:** pulo 0 continua batendo pulo 1, agora em **10 dos 12 pares**
+— consistente com a seção 6, que mede o mesmo fenômeno diretamente.
